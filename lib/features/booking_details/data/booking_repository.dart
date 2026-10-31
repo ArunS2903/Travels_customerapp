@@ -1,0 +1,120 @@
+import 'package:dio/dio.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../../core/constants/api_endpoints.dart';
+import '../../../core/constants/booking_status.dart';
+import '../../../core/network/api_client.dart';
+import '../../../shared/models/paginated_result.dart';
+import '../../../shared/models/place.dart';
+import '../models/booking.dart';
+
+/// Outcome of a create call, distinguishing a new booking from a deduplicated
+/// retry so the UI can avoid celebrating the same booking twice.
+class BookingCreationResult {
+  const BookingCreationResult({required this.booking, required this.wasDeduplicated});
+
+  final Booking booking;
+
+  /// True when this submission matched an `idempotencyKey` we had already used,
+  /// i.e. the booking already existed.
+  final bool wasDeduplicated;
+}
+
+class BookingRepository {
+  const BookingRepository(this._client);
+
+  final ApiClient _client;
+
+  static const _uuid = Uuid();
+
+  /// Generates an idempotency key for one booking *attempt*.
+  ///
+  /// The caller holds onto this across retries, which is the whole point: a
+  /// double tap or a Dio retry after a timeout re-sends the same key, and the
+  /// backend returns the original booking instead of creating a second one. A
+  /// fresh key is only generated when the customer starts a genuinely new
+  /// booking.
+  static String newIdempotencyKey() => _uuid.v4();
+
+  Future<BookingCreationResult> createBooking({
+    required String vehicleTypeId,
+    required Place pickup,
+    required Place destination,
+    required PaymentMethod paymentMethod,
+    required String idempotencyKey,
+    String? specialInstructions,
+    DateTime? scheduledAt,
+  }) async {
+    final response = await _client.postRaw(
+      ApiEndpoints.bookings,
+      body: {
+        'vehicleTypeId': vehicleTypeId,
+        'pickup': pickup.toJson(),
+        'destination': destination.toJson(),
+        'paymentMethod': paymentMethod.apiValue,
+        'idempotencyKey': idempotencyKey,
+        if (specialInstructions != null && specialInstructions.trim().isNotEmpty)
+          'specialInstructions': specialInstructions.trim(),
+        if (scheduledAt != null) 'scheduledAt': scheduledAt.toUtc().toIso8601String(),
+      },
+      // Safe to retry precisely because of the idempotency key above.
+      retryable: true,
+    );
+
+    final body = response.data as Map;
+    final data = Map<String, dynamic>.from(body['data'] as Map);
+
+    return BookingCreationResult(
+      booking: Booking.fromJson(Map<String, dynamic>.from(data['booking'] as Map)),
+      // 200 (rather than 201) also means "already existed", so trust either signal.
+      wasDeduplicated: (data['deduplicated'] as bool? ?? false) || response.statusCode == 200,
+    );
+  }
+
+  Future<PaginatedResult<BookingSummary>> fetchBookings({
+    BookingTab? tab,
+    int page = 1,
+    int limit = 10,
+    CancelToken? cancelToken,
+  }) async {
+    final data = await _client.get(
+      ApiEndpoints.bookings,
+      query: {
+        if (tab != null) 'tab': tab.apiValue,
+        'page': page,
+        'limit': limit,
+      },
+      cancelToken: cancelToken,
+    );
+    return PaginatedResult.fromJson(data, BookingSummary.fromJson);
+  }
+
+  Future<BookingDetail> fetchBooking(String bookingId, {CancelToken? cancelToken}) async {
+    final data = await _client.get(ApiEndpoints.booking(bookingId), cancelToken: cancelToken);
+    return BookingDetail.fromJson(data);
+  }
+
+  /// What cancelling right now would cost. Fetched when the sheet opens so the
+  /// fee shown is current rather than whatever the detail call said earlier.
+  Future<CancellationInfo> fetchCancellationPolicy(String bookingId) async {
+    final data = await _client.get(ApiEndpoints.cancellationPolicy(bookingId));
+    return CancellationInfo.fromJson(data);
+  }
+
+  /// Cancels a booking. The backend refuses if the booking has moved on, and
+  /// that conflict surfaces as an `ApiException` with a `BOOKING_*` code.
+  Future<Booking> cancelBooking({
+    required String bookingId,
+    required String reason,
+    String? remarks,
+  }) async {
+    final data = await _client.post(
+      ApiEndpoints.cancelBooking(bookingId),
+      body: {
+        'reason': reason,
+        if (remarks != null && remarks.trim().isNotEmpty) 'remarks': remarks.trim(),
+      },
+    );
+    return Booking.fromJson(Map<String, dynamic>.from(data['booking'] as Map));
+  }
+}

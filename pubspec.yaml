@@ -1,0 +1,57 @@
+name: customer_app
+description: Customer taxi booking application.
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management. Riverpod is used throughout; no setState-driven business
+  # logic and no global singletons outside the provider graph.
+  flutter_riverpod: ^2.6.1
+
+  # Networking
+  dio: ^5.7.0
+
+  # Navigation. Declarative routes with auth redirects in one place.
+  go_router: ^14.6.2
+
+  # Maps and location
+  google_maps_flutter: ^2.9.0
+  geolocator: ^13.0.2
+  geocoding: ^3.0.0
+  permission_handler: ^11.3.1
+
+  # Storage. Tokens go in the platform keystore, preferences in plain prefs.
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.3.3
+
+  # Realtime booking status updates
+  socket_io_client: ^3.0.1
+
+  # Push notifications. Initialisation is gated on build-time configuration;
+  # see core/config/app_config.dart and lib/core/notifications/.
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
+  flutter_local_notifications: ^18.0.1
+
+  # Utilities
+  intl: ^0.19.0
+  uuid: ^4.5.1
+  url_launcher: ^6.3.1
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/

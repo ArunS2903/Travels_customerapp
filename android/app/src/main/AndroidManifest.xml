@@ -1,0 +1,114 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        Permissions, each one earning its place:
+
+        INTERNET          - every API call.
+        ACCESS_NETWORK_STATE - lets Dio/Socket.IO react to connectivity changes.
+        ACCESS_COARSE_LOCATION / ACCESS_FINE_LOCATION - the pickup point. Both are
+            declared so Android 12+ can grant the coarse-only option; the app
+            works with either, because the customer confirms the pin anyway.
+        POST_NOTIFICATIONS - required from Android 13 to show booking updates.
+
+        Deliberately NOT requested: background location (we never track a
+        customer between trips), contacts, storage, camera, and precise
+        background location. If a reviewer asks why a permission is here, the
+        answer should be in this list.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Maps and location are conveniences, not requirements: the customer can
+         always type an address or drop a pin, so the app must install on a
+         device without GPS hardware. -->
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
+    <application
+        android:label="Taxi Booking"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+
+            <!-- Lets a tapped FCM notification reach the Dart side. -->
+            <intent-filter>
+                <action android:name="FLUTTER_NOTIFICATION_CLICK" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            Google Maps SDK key.
+
+            Supplied by the MAPS_API_KEY Gradle property rather than written
+            here, so no key is committed. Set it in android/local.properties
+            (which is gitignored):
+
+                MAPS_API_KEY=AIza...
+
+            With no key the map tiles render blank; the app still runs, and the
+            UI says why. This key must be restricted to this app's package name
+            and SHA-1 in the Google Cloud console, and must be a different key
+            from the server-side one in the backend's .env.
+        -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+
+        <!-- Channel used for booking updates. Must match the channel id in
+             lib/core/notifications/push_service.dart, or a push arriving while
+             the app is backgrounded is silently dropped. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="booking_updates" />
+
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+
+    <!--
+        Android 11+ package visibility. Each entry corresponds to something the
+        app actually launches: a dialler for calling the operator or driver, an
+        email client for support, and a browser for the terms and privacy links.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+</manifest>

@@ -1,0 +1,10 @@
+# Copy to local.properties (gitignored) and fill in.
+#
+# The Android Maps SDK reads its key from AndroidManifest.xml, which Gradle
+# fills from this property. Without it the map tiles render blank; the app
+# still builds and runs.
+#
+# Restrict this key in the Google Cloud console to this package name
+# (com.yourtaxi.customer_app) and your signing SHA-1. It must be a DIFFERENT
+# key from the server-side one in backend/.env.
+MAPS_API_KEY=

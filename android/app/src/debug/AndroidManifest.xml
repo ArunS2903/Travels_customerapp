@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The INTERNET permission is required for development. Specifically,
+         the Flutter tool needs it to communicate with the running application
+         to allow setting breakpoints, to provide hot reload, etc.
+    -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Permits plain http:// to a local development API server. Merged into
+         debug builds only; see res/xml/network_security_config.xml. The main
+         manifest does not set this attribute, so there is nothing to override
+         and release builds remain HTTPS-only. -->
+    <application
+        android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>

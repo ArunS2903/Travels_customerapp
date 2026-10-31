@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    DEBUG BUILDS ONLY.
+
+    Android blocks plain http:// from API 28 onwards. A development API server
+    runs over http on localhost or a LAN address, so without this every request
+    from a debug build fails with:
+
+        CLEARTEXT communication to 10.0.2.2 not permitted by network
+        security policy
+
+    This file lives in src/debug/, so it is compiled into debug builds and
+    nothing else. Release and profile builds keep Android's default, which
+    permits HTTPS only - a release build pointing at an http:// server will
+    still (correctly) refuse to connect.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
