@@ -12,6 +12,8 @@ import '../../features/authentication/providers/auth_controller.dart';
 import '../../features/booking_confirmation/presentation/booking_confirmation_screen.dart';
 import '../../features/booking_details/presentation/booking_details_screen.dart';
 import '../../features/booking_history/presentation/my_bookings_screen.dart';
+import '../../features/fleet/presentation/available_vehicles_screen.dart';
+import '../../features/fleet/presentation/vehicle_details_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/location/presentation/map_picker_screen.dart';
 import '../../features/location/presentation/place_search_screen.dart';
@@ -23,7 +25,6 @@ import '../../features/profile/presentation/notification_settings_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/saved_addresses_screen.dart';
 import '../../features/support/presentation/support_screen.dart';
-import '../../features/vehicle_selection/presentation/vehicle_selection_screen.dart';
 import '../providers/app_providers.dart';
 import 'app_routes.dart';
 
@@ -137,9 +138,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           return MapPickerScreen(args: args is MapPickerArgs ? args : const MapPickerArgs());
         },
       ),
+      // The fleet. `/vehicles` is declared before `/vehicles/:vehicleId` so the
+      // list is not matched as an id, mirroring the backend's own route order.
       GoRoute(
-        path: AppRoutes.vehicleSelection,
-        builder: (_, __) => const VehicleSelectionScreen(),
+        path: AppRoutes.availableVehicles,
+        builder: (_, __) => const AvailableVehiclesScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.vehicleDetails,
+        builder: (context, state) {
+          final vehicleId = state.pathParameters['vehicleId'] ?? '';
+          return VehicleDetailsScreen(vehicleId: vehicleId);
+        },
       ),
       GoRoute(
         path: AppRoutes.bookingConfirmation,

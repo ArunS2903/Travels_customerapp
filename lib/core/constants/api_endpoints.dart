@@ -29,8 +29,22 @@ class ApiEndpoints {
   static const String vehicleTypes = '/vehicles/types';
   static const String fareEstimate = '/fares/estimate';
 
+  /// The fleet: individual vehicles with their photographs and daily rates.
+  ///
+  /// Declared after `/vehicles/types` on the server so "types" is never matched
+  /// as an id; the order matters there, not here.
+  static const String vehicles = '/vehicles';
+  static String vehicle(String vehicleId) => '/vehicles/$vehicleId';
+
+  /// Which days a vehicle is already held, for the date picker.
+  static String vehicleAvailability(String vehicleId) => '/vehicles/$vehicleId/availability';
+
   // --- Bookings -------------------------------------------------------------
   static const String bookings = '/bookings';
+
+  /// What a hire would cost, before committing to it. Creates nothing.
+  static const String hireQuote = '/bookings/quote';
+
   static String booking(String bookingId) => '/bookings/$bookingId';
   static String cancelBooking(String bookingId) => '/bookings/$bookingId/cancel';
   static String cancellationPolicy(String bookingId) =>

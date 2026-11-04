@@ -67,7 +67,10 @@ class BookingCreationController extends StateNotifier<BookingCreationState> {
 
     final draft = _ref.read(bookingDraftProvider);
 
-    if (!draft.isReadyToConfirm) {
+    final period = draft.period;
+    final vehicle = draft.vehicle;
+
+    if (!draft.isReadyToConfirm || period == null || vehicle == null) {
       state = state.copyWith(
         error: const ApiException(
           message: 'Something is missing from this booking. Please check and try again.',
@@ -84,13 +87,14 @@ class BookingCreationController extends StateNotifier<BookingCreationState> {
 
     try {
       final result = await _ref.read(bookingRepositoryProvider).createBooking(
-            vehicleTypeId: draft.selectedEstimate!.id,
+            vehicleId: vehicle.id,
+            startAt: period.startAt,
+            endAt: period.endAt,
             pickup: draft.pickup!,
             destination: draft.destination!,
             paymentMethod: draft.paymentMethod,
             idempotencyKey: idempotencyKey,
             specialInstructions: draft.specialInstructions,
-            scheduledAt: draft.scheduledAt,
           );
 
       state = BookingCreationState(

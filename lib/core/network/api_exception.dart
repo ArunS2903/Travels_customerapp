@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../config/app_config.dart';
+
 /// A failure the UI can act on.
 ///
 /// Dio throws [DioException] for everything from a DNS failure to a 409, which
@@ -73,6 +75,27 @@ class ApiException implements Exception {
       code == 'REFRESH_TOKEN_EXPIRED' ||
       code == 'REFRESH_TOKEN_MISSING';
 
+  /// Where the failed request was going, for a developer reading a log.
+  ///
+  /// This exists because of a specific trap. `API_BASE_URL` defaults to
+  /// `http://10.0.2.2:5000/api/v1`, which is the Android *emulator's* alias for
+  /// the host machine and resolves to nothing on a physical device. A build
+  /// launched without `--dart-define=API_BASE_URL=...` therefore times out on
+  /// every call, and "the server took too long to respond" sends whoever is
+  /// debugging it to look at the server — which is fine, and is not the
+  /// problem. Naming the URL points at the real cause immediately.
+  ///
+  /// Debug builds only. The customer-facing [message] never changes, and a
+  /// release build must not print internal hostnames into a crash report.
+  static Map<String, dynamic>? _whereHint(DioException error) {
+    if (!AppConfig.debugLogging) return null;
+    return {
+      'url': '${error.requestOptions.baseUrl}${error.requestOptions.path}',
+      'hint': 'Unreachable base URL? Pass --dart-define=API_BASE_URL=... '
+          '(10.0.2.2 only resolves on an Android emulator).',
+    };
+  }
+
   /// Maps a [DioException] onto this type.
   factory ApiException.from(DioException error) {
     switch (error.type) {
@@ -83,15 +106,18 @@ class ApiException implements Exception {
       // Indistinguishable from a slow server as far as the customer is
       // concerned, so it gets the same message.
       case DioExceptionType.transformTimeout:
-        return const ApiException(
+        return ApiException(
           message: 'The server took too long to respond. Please try again.',
           code: timeout,
+          // Names the URL in debug builds only; see [_whereHint].
+          details: _whereHint(error),
         );
 
       case DioExceptionType.connectionError:
-        return const ApiException(
+        return ApiException(
           message: 'No connection to the server. Check your internet and try again.',
           code: networkUnavailable,
+          details: _whereHint(error),
         );
 
       case DioExceptionType.cancel:

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import '../../../../core/config/app_config.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/polyline_decoder.dart';
@@ -28,6 +27,10 @@ class BookingRouteMap extends StatefulWidget {
 class _BookingRouteMapState extends State<BookingRouteMap> {
   GoogleMapController? _controller;
 
+  /// Set once the platform view reports itself ready. Fitting bounds before
+  /// that throws on Android, which is what the old fixed delay was guessing at.
+  bool _isMapReady = false;
+
   late final List<LatLng> _routePoints;
   late final bool _isStraightLine;
 
@@ -53,45 +56,17 @@ class _BookingRouteMapState extends State<BookingRouteMap> {
   }
 
   Future<void> _fitRoute() async {
+    if (!_isMapReady) return;
+
     final bounds = PolylineDecoder.boundsFor(_routePoints);
     if (bounds == null) return;
 
-    // Let the map finish laying out; fitting bounds too early throws.
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    if (!mounted) return;
     await _controller?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 46));
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    if (AppConfig.googleMapsApiKey.isEmpty) {
-      return Container(
-        height: widget.height,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-        ),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.map_outlined, size: 26, color: AppColors.amberDark),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Route map needs a Google Maps key',
-                  style: theme.textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.md),
@@ -103,6 +78,7 @@ class _BookingRouteMapState extends State<BookingRouteMap> {
               initialCameraPosition: CameraPosition(target: _pickup, zoom: 13),
               onMapCreated: (controller) {
                 _controller = controller;
+                _isMapReady = true;
                 _fitRoute();
               },
               markers: {
@@ -145,7 +121,11 @@ class _BookingRouteMapState extends State<BookingRouteMap> {
               zoomGesturesEnabled: false,
               rotateGesturesEnabled: false,
               tiltGesturesEnabled: false,
-              liteModeEnabled: true,
+              myLocationEnabled: false,
+              /// Off for the same reason as on the home preview: lite mode is
+              /// Android-only and a failed snapshot renders as a featureless
+              /// grey panel, which is indistinguishable from a missing API key.
+              liteModeEnabled: false,
             ),
             if (_isStraightLine)
               Positioned(

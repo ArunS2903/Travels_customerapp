@@ -14,8 +14,16 @@ import '../config/app_config.dart';
 ///
 /// Backoff is exponential with jitter, because a dozen clients retrying in
 /// lockstep after a blip is how a recovering server gets knocked over again.
+///
+/// The attempt count is small on purpose. Every attempt costs a full timeout,
+/// so the number of retries sets how long a customer stares at a spinner before
+/// being told anything: three attempts at the old 20-second receive timeout was
+/// a minute of silence. A second attempt absorbs a genuine blip; a third mostly
+/// just delays the bad news. See [AppConfig.networkAttempts].
 class RetryInterceptor extends Interceptor {
-  RetryInterceptor({required Dio dio, this.maxAttempts = 3}) : _dio = dio;
+  RetryInterceptor({required Dio dio, int? maxAttempts})
+      : _dio = dio,
+        maxAttempts = maxAttempts ?? AppConfig.networkAttempts;
 
   final Dio _dio;
   final int maxAttempts;
@@ -57,7 +65,7 @@ class RetryInterceptor extends Interceptor {
       return handler.next(err);
     }
 
-    // 2^attempt * 400ms, plus up to 250ms of jitter: ~0.4s, ~0.8s, ~1.6s.
+    // 2^attempt * 400ms, plus up to 250ms of jitter: ~0.4s, then ~0.8s.
     final backoff = Duration(
       milliseconds: (400 * pow(2, attempt)).toInt() + _random.nextInt(250),
     );

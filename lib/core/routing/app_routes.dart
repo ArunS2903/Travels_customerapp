@@ -15,7 +15,15 @@ class AppRoutes {
   static const String home = '/';
   static const String placeSearch = '/place-search';
   static const String mapPicker = '/map-picker';
-  static const String vehicleSelection = '/vehicle-selection';
+
+  /// The vehicles free for the dates in the draft.
+  static const String availableVehicles = '/vehicles';
+
+  /// One vehicle, in full. A path parameter rather than an object in `extra`,
+  /// so the screen works from a deep link and after a process restart.
+  static const String vehicleDetails = '/vehicles/:vehicleId';
+  static String vehicleDetailsFor(String vehicleId) => '/vehicles/$vehicleId';
+
   static const String bookingConfirmation = '/booking-confirmation';
 
   static const String bookings = '/bookings';

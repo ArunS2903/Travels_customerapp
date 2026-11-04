@@ -1,0 +1,69 @@
+{
+  // Run configurations for the customer app.
+  //
+  // Why these exist
+  // ---------------
+  // `AppConfig.apiBaseUrl` defaults to `http://10.0.2.2:5000/api/v1`, which is
+  // the Android *emulator's* alias for the host machine. On a physical phone it
+  // resolves to nothing, so a build launched with no `--dart-define` times out
+  // on every single call - which looks exactly like "the vehicle details are
+  // broken" and is really "the app is talking to an address that does not
+  // exist". Launching through one of these configurations rather than the bare
+  // `main.dart` entry is what stops that.
+  //
+  // The Maps SDK key is NOT set here. It is native, and lives in
+  // `android/local.properties` as `MAPS_API_KEY=...` - a dart-define cannot
+  // reach the Android manifest. GOOGLE_MAPS_API_KEY below is the separate
+  // *Places* web-service key; without it address search falls back to the
+  // on-device geocoder and the map still works normally.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "customer_app (Android emulator)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": [
+        "--dart-define=API_BASE_URL=http://10.0.2.2:5000/api/v1"
+      ]
+    },
+    {
+      // Prompts for your machine's LAN address the first time you run it.
+      // Find it with `ipconfig` (Windows) or `ifconfig`/`ip addr` (macOS,
+      // Linux) - it is the 192.168.x.x or 10.x.x.x one, not 127.0.0.1. The
+      // phone and the computer must be on the same network, and the backend
+      // must be listening on all interfaces rather than only localhost.
+      "name": "customer_app (physical device)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": [
+        "--dart-define=API_BASE_URL=http://${input:lanHost}:5000/api/v1"
+      ]
+    },
+    {
+      "name": "customer_app (release, staging API)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "release",
+      "args": [
+        "--dart-define=API_BASE_URL=https://${input:apiHost}/api/v1"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "lanHost",
+      "type": "promptString",
+      "description": "Your computer's LAN IP (not localhost)",
+      "default": "192.168.0.88"
+    },
+    {
+      "id": "apiHost",
+      "type": "promptString",
+      "description": "API host, e.g. api.example.com",
+      "default": "api.example.com"
+    }
+  ]
+}

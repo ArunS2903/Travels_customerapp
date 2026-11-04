@@ -196,7 +196,13 @@ enum BookingTab {
 }
 
 /// Payment methods, mirroring the backend enum.
+///
+/// The list is longer than what a new booking may use. `UPI`, `Card` and
+/// `Wallet` are still valid values on historical bookings and must parse, but
+/// only [offeredForHire] may be chosen - nothing in this system can take or
+/// verify the others. See `HIRE_PAYMENT_METHODS` in the backend.
 enum PaymentMethod {
+  gpay('GPay', Icons.account_balance_wallet_rounded),
   cash('Cash', Icons.payments_outlined),
   upi('UPI', Icons.qr_code_rounded),
   card('Card', Icons.credit_card_rounded),
@@ -207,6 +213,41 @@ enum PaymentMethod {
   final String apiValue;
   final IconData icon;
 
+  /// What a customer may pick for a new hire: pay now by GPay, or pay on
+  /// arrival. The server refuses anything else.
+  static const List<PaymentMethod> offeredForHire = [gpay, cash];
+
+  bool get isOfferedForHire => offeredForHire.contains(this);
+
+  /// The label on the chooser. `GPay` alone does not say when the money moves.
+  String get label {
+    switch (this) {
+      case gpay:
+        return 'Pay now by GPay';
+      case cash:
+        return 'Cash on travel';
+      case upi:
+        return 'UPI';
+      case card:
+        return 'Card';
+      case wallet:
+        return 'Wallet';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case gpay:
+        return 'Opens GPay. Submit the receipt reference afterwards and we confirm it.';
+      case cash:
+        return 'Pay the operator when you collect the vehicle.';
+      case upi:
+      case card:
+      case wallet:
+        return 'Recorded on this booking.';
+    }
+  }
+
   static PaymentMethod fromApi(String? value) => PaymentMethod.values.firstWhere(
         (method) => method.apiValue.toLowerCase() == (value ?? '').toLowerCase(),
         orElse: () => PaymentMethod.cash,
@@ -216,6 +257,13 @@ enum PaymentMethod {
 /// Payment statuses, mirroring the backend enum.
 enum PaymentStatus {
   pending('Pending'),
+
+  /// The customer has said they paid and given a reference, and nobody has
+  /// checked it against the bank yet. A UPI deep link cannot tell the app
+  /// anything trustworthy, so this is as far as the customer can move a
+  /// payment; only an admin makes it [paid].
+  awaitingVerification('Awaiting Verification'),
+
   paid('Paid'),
   failed('Failed'),
   refunded('Refunded');
@@ -223,6 +271,8 @@ enum PaymentStatus {
   const PaymentStatus(this.apiValue);
 
   final String apiValue;
+
+  bool get isSettled => this == paid;
 
   static PaymentStatus fromApi(String? value) => PaymentStatus.values.firstWhere(
         (status) => status.apiValue.toLowerCase() == (value ?? '').toLowerCase(),
@@ -237,8 +287,52 @@ enum PaymentStatus {
         return AppColors.danger;
       case refunded:
         return AppColors.info;
+      case awaitingVerification:
+        return AppColors.info;
       case pending:
         return AppColors.warning;
     }
   }
+}
+
+/// Whether a driver has been put on a booking, mirroring
+/// `DRIVER_ALLOCATION_STATUS` in the backend.
+///
+/// This exists so the app can say "Driver not allocated yet" as a *state*
+/// rather than as the absence of one. The backend sends the string; this enum
+/// attaches the colour, the icon and the sentence that explains it, and
+/// [fromApi] keeps an unrecognised value usable rather than crashing.
+enum DriverAllocationStatus {
+  notAllocated('Not Allocated'),
+  allocated('Allocated');
+
+  const DriverAllocationStatus(this.apiValue);
+
+  final String apiValue;
+
+  bool get isAllocated => this == allocated;
+
+  static DriverAllocationStatus fromApi(String? value) {
+    for (final status in DriverAllocationStatus.values) {
+      if (status.apiValue.toLowerCase() == (value ?? '').toLowerCase()) return status;
+    }
+    return DriverAllocationStatus.notAllocated;
+  }
+
+  /// What the customer sees as the field's value.
+  String get label => this == allocated ? 'Driver allocated' : 'Driver not allocated yet';
+
+  /// What it means for them, in plain language.
+  String get description => this == allocated
+      ? 'Your driver has been assigned. Their name and mobile number are below, '
+          'and we have texted them to your registered number.'
+      : 'The operator has not assigned a driver yet. We will text you their name '
+          'and mobile number as soon as they do.';
+
+  Color get color => this == allocated ? AppColors.success : AppColors.warning;
+
+  Color get softColor => this == allocated ? AppColors.successSoft : AppColors.warningSoft;
+
+  IconData get icon =>
+      this == allocated ? Icons.how_to_reg_rounded : Icons.person_search_rounded;
 }

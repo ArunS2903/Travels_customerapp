@@ -19,15 +19,22 @@ import '../../location/data/location_service.dart';
 import '../../location/presentation/place_search_screen.dart';
 import '../../location/providers/location_providers.dart';
 import '../../notifications/providers/notification_providers.dart';
+import '../../fleet/presentation/available_vehicles_screen.dart';
 import '../../vehicle_selection/providers/vehicle_providers.dart';
+import 'widgets/booking_information_card.dart';
 import 'widgets/home_map_preview.dart';
 import 'widgets/vehicle_category_strip.dart';
 
-/// The home screen: where the customer sets a trip up.
+/// The home screen: where the customer sets a booking up.
+///
+/// The order of the sections is the order the flow depends on them. The dates
+/// come first, because which vehicles exist at all is a function of them - the
+/// fleet is held day by day against other bookings - so asking for a vehicle
+/// before a date would mean offering cars that cannot be had.
 ///
 /// The pickup is seeded from the device location on first load, so in the
-/// common case the only thing to do is tap "Where to?". Everything else -
-/// saved places, recents, the category strip - is a shortcut past that one tap.
+/// common case the only things to do are pick a date and tap "Where to?".
+/// Everything else - saved places, recents - is a shortcut past that.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -41,7 +48,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _seedPickupFromLocation());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _seedPickupFromLocation(),
+    );
   }
 
   /// Fills the pickup from the device location, once, and only if the customer
@@ -95,20 +104,70 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.read(bookingDraftProvider.notifier).setPickup(result);
   }
 
-  /// Moves to vehicle selection once both ends are set.
-  void _continueIfReady() {
-    final draft = ref.read(bookingDraftProvider);
-    if (!draft.hasRoute) return;
+  /// Moves to the available vehicles once the dates and both ends are set.
+  ///
+  /// Nothing is navigated to on a half-filled form: the screen it would open
+  /// cannot answer "what is free" without a period, and it is kinder to name
+  /// the missing piece here than to show an empty screen there.
+  ///
+  /// `quiet` is what lets the same method serve two callers. Choosing a
+  /// destination calls it hoping to move on and should say nothing if it
+  /// cannot; the button calls it meaning to move on and must explain itself.
+  void _continueIfReady({bool quiet = true}) {
+    var draft = ref.read(bookingDraftProvider);
 
-    if (!draft.isReadyToQuote) {
+    if (!draft.hasPeriod) {
+      if (!quiet) {
+        AppFeedback.showInfo(
+          context,
+          'Choose your booking date to see available vehicles.',
+        );
+      }
+      return;
+    }
+
+    final startAt = draft.startAt!;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final pickupDate = DateTime(startAt.year, startAt.month, startAt.day);
+    if (pickupDate.isBefore(today)) {
       AppFeedback.showInfo(
         context,
-        'Your pickup and destination are the same place. Choose a different destination.',
+        'Your booking date has passed. Choose a new booking date.',
       );
       return;
     }
 
-    context.push(AppRoutes.vehicleSelection);
+    if (pickupDate == today &&
+        startAt.isBefore(now.add(BookingInformationCard.pickupBuffer))) {
+      final updatedStart = now.add(BookingInformationCard.pickupBuffer);
+      ref.read(bookingDraftProvider.notifier).setStartDate(updatedStart);
+      draft = ref.read(bookingDraftProvider);
+      AppFeedback.showInfo(
+        context,
+        'Today’s pickup time has passed. We updated it to ${Formatters.time(updatedStart)}.',
+      );
+    }
+
+    if (!draft.hasRoute) {
+      if (!quiet) {
+        AppFeedback.showInfo(
+          context,
+          'Set your pickup and drop locations to continue.',
+        );
+      }
+      return;
+    }
+
+    if (!draft.isReadyToSearch) {
+      AppFeedback.showInfo(
+        context,
+        'Your pickup and drop are the same place. Choose a different drop location.',
+      );
+      return;
+    }
+
+    context.push(AppRoutes.availableVehicles);
   }
 
   Future<void> _useSavedAddress(SavedAddress address) async {
@@ -116,7 +175,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final draft = ref.read(bookingDraftProvider);
 
     if (draft.pickup != null && draft.pickup!.isSameLocationAs(place)) {
-      AppFeedback.showInfo(context, 'You are already at your ${address.label.toLowerCase()}.');
+      AppFeedback.showInfo(
+        context,
+        'You are already at your ${address.label.toLowerCase()}.',
+      );
       return;
     }
 
@@ -183,42 +245,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ),
 
+                      // --- 1. When is the vehicle wanted --------------
+                      const BookingInformationCard(),
+                      const SizedBox(height: AppSpacing.lg),
+
+                      // --- 2. Where is it going -----------------------
                       HomeMapPreview(
                         pickup: draft.pickup,
                         destination: draft.destination,
                         onTap: _choosePickup,
+                        // The map draws either way; this only decides whether
+                        // it admits it is still looking for the customer.
+                        isLocating:
+                            locationState.isLoading && draft.pickup == null,
                       ),
                       const SizedBox(height: AppSpacing.lg),
 
                       _TripInputs(
                         pickup: draft.pickup,
                         destination: draft.destination,
-                        isLoadingPickup: locationState.isLoading && draft.pickup == null,
+                        isLoadingPickup:
+                            locationState.isLoading && draft.pickup == null,
                         onTapPickup: _choosePickup,
                         onTapDestination: _chooseDestination,
                         onSwap: draft.hasRoute
                             ? () {
-                                ref.read(bookingDraftProvider.notifier).swapPickupAndDestination();
+                                ref
+                                    .read(bookingDraftProvider.notifier)
+                                    .swapPickupAndDestination();
                               }
                             : null,
                       ),
 
-                      if (draft.isReadyToQuote) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      PrimaryButton(
+                        label: 'Find available vehicles',
+                        icon: Icons.directions_car_filled_rounded,
+                        // Always live, so tapping it on a half-filled form says
+                        // what is still needed rather than doing nothing. The
+                        // checks live in _continueIfReady.
+                        onPressed: () => _continueIfReady(quiet: false),
+                      ),
+
+                      // What is actually free for the chosen dates, so the date
+                      // the customer just picked visibly did something.
+                      if (draft.period != null) ...[
                         const SizedBox(height: AppSpacing.lg),
-                        PrimaryButton(
-                          label: 'See fares and book',
-                          icon: Icons.local_taxi_rounded,
-                          onPressed: _continueIfReady,
-                        ),
+                        AvailableVehiclesPreview(period: draft.period!),
                       ],
 
                       const SizedBox(height: AppSpacing.xxl),
 
-                      if (customer != null && customer.savedAddresses.isNotEmpty) ...[
+                      if (customer != null &&
+                          customer.savedAddresses.isNotEmpty) ...[
                         _SavedPlacesRow(
                           addresses: customer.savedAddresses,
                           onSelect: _useSavedAddress,
-                          onManage: () => context.push(AppRoutes.savedAddresses),
+                          onManage: () =>
+                              context.push(AppRoutes.savedAddresses),
                         ),
                         const SizedBox(height: AppSpacing.xxl),
                       ] else if (customer != null) ...[
@@ -229,13 +313,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ],
 
                       if (recents.isNotEmpty) ...[
-                        Text('Recent destinations', style: theme.textTheme.titleSmall),
+                        Text(
+                          'Recent destinations',
+                          style: theme.textTheme.titleSmall,
+                        ),
                         const SizedBox(height: AppSpacing.sm),
-                        ...recents.take(3).map(
+                        ...recents
+                            .take(3)
+                            .map(
                               (place) => _RecentDestinationTile(
                                 place: place,
                                 onTap: () {
-                                  ref.read(bookingDraftProvider.notifier).setDestination(place);
+                                  ref
+                                      .read(bookingDraftProvider.notifier)
+                                      .setDestination(place);
                                   _continueIfReady();
                                 },
                               ),
@@ -243,12 +334,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         const SizedBox(height: AppSpacing.xxl),
                       ],
 
-                      Text('Vehicles available', style: theme.textTheme.titleSmall),
+                      Text('What we have', style: theme.textTheme.titleSmall),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
-                        draft.isReadyToQuote
-                            ? 'Fares for your trip are on the next screen.'
-                            : 'Set a destination to see the fare for your trip.',
+                        draft.hasPeriod
+                            ? 'The kinds of vehicle in our fleet. Tap "Find available '
+                                  'vehicles" to see which ones are free for your dates.'
+                            : 'The kinds of vehicle in our fleet. Pick a booking date '
+                                  'above to see which ones are free.',
                         style: theme.textTheme.bodySmall,
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -259,7 +352,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         onBookings: () => context.push(AppRoutes.bookings),
                         onSupport: () => context.push(AppRoutes.support),
                       ),
-                      SizedBox(height: AppSpacing.xxxl + MediaQuery.paddingOf(context).bottom),
+                      SizedBox(
+                        height:
+                            AppSpacing.xxxl +
+                            MediaQuery.paddingOf(context).bottom,
+                      ),
                     ],
                   ),
                 ),
@@ -273,14 +370,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildHeader(Customer? customer) {
     final theme = Theme.of(context);
-    final unreadCount = ref.watch(unreadNotificationCountProvider).maybeWhen(
-          data: (count) => count,
-          orElse: () => 0,
-        );
-    final businessName = ref.watch(businessContactProvider).maybeWhen(
-          data: (contact) => contact.businessName,
-          orElse: () => null,
-        );
+    final unreadCount = ref
+        .watch(unreadNotificationCountProvider)
+        .maybeWhen(data: (count) => count, orElse: () => 0);
+    final businessName = ref
+        .watch(businessContactProvider)
+        .maybeWhen(data: (contact) => contact.businessName, orElse: () => null);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -298,7 +393,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  businessName ?? 'Taxi Booking',
+                  businessName ?? 'PP Travels',
                   style: theme.textTheme.labelSmall,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -379,11 +474,11 @@ class _TripInputs extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.sm),
               AppPickerField(
-                label: 'Destination',
+                label: 'Drop location',
                 prefixIcon: Icons.place_outlined,
                 value: destination?.address ?? '',
                 isEmpty: destination == null,
-                placeholder: 'Where to?',
+                placeholder: 'Where are you taking it?',
                 onTap: onTapDestination,
               ),
             ],
@@ -394,10 +489,12 @@ class _TripInputs extends StatelessWidget {
             padding: const EdgeInsets.only(left: AppSpacing.sm),
             child: IconButton(
               onPressed: onSwap,
-              tooltip: 'Swap pickup and destination',
+              tooltip: 'Swap pickup and drop',
               icon: const Icon(Icons.swap_vert_rounded),
               style: IconButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
               ),
             ),
           ),
@@ -427,7 +524,9 @@ class _SavedPlacesRow extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(child: Text('Saved places', style: theme.textTheme.titleSmall)),
+            Expanded(
+              child: Text('Saved places', style: theme.textTheme.titleSmall),
+            ),
             TextButton(onPressed: onManage, child: const Text('Manage')),
           ],
         ),
@@ -460,8 +559,8 @@ class _SavedPlacesRow extends StatelessWidget {
                             address.isHome
                                 ? Icons.home_rounded
                                 : address.isOffice
-                                    ? Icons.work_rounded
-                                    : Icons.bookmark_rounded,
+                                ? Icons.work_rounded
+                                : Icons.bookmark_rounded,
                             size: 16,
                             color: AppColors.amberDark,
                           ),
@@ -524,7 +623,10 @@ class _SaveAddressPrompt extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Save your home and office', style: theme.textTheme.titleSmall),
+                  Text(
+                    'Save your home and office',
+                    style: theme.textTheme.titleSmall,
+                  ),
                   const SizedBox(height: 2),
                   Text(
                     'Book your regular trips in one tap.',
@@ -558,7 +660,11 @@ class _RecentDestinationTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
         child: Row(
           children: [
-            Icon(Icons.history_rounded, size: 19, color: theme.colorScheme.onSurfaceVariant),
+            Icon(
+              Icons.history_rounded,
+              size: 19,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -566,7 +672,9 @@ class _RecentDestinationTile extends StatelessWidget {
                 children: [
                   Text(
                     place.shortAddress,
-                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -580,7 +688,11 @@ class _RecentDestinationTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.north_east_rounded, size: 17, color: theme.colorScheme.onSurfaceVariant),
+            Icon(
+              Icons.north_east_rounded,
+              size: 17,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ],
         ),
       ),
@@ -619,7 +731,11 @@ class _QuickActions extends StatelessWidget {
 }
 
 class _QuickActionTile extends StatelessWidget {
-  const _QuickActionTile({required this.icon, required this.label, required this.onTap});
+  const _QuickActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
@@ -669,9 +785,12 @@ class _LocationErrorBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final locationError = error is LocationException ? error as LocationException : null;
+    final locationError = error is LocationException
+        ? error as LocationException
+        : null;
 
-    final message = locationError?.message ??
+    final message =
+        locationError?.message ??
         'We could not read your location. Set your pickup manually.';
 
     String? actionLabel;

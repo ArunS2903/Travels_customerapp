@@ -41,8 +41,16 @@ class BookingBusinessContact {
       (callNumber ?? '').isNotEmpty || (emailAddress ?? '').isNotEmpty;
 }
 
+/// The driver allocated to a booking.
+///
+/// Written by the admin panel only - the app reads it and can never set it.
+/// Null until somebody is allocated, which is why [BookingDriverAllocation]
+/// exists alongside it: a screen has to be able to say "not allocated yet"
+/// without first testing a null.
 class BookingDriver {
   const BookingDriver({
+    this.driverId,
+    this.driverCode,
     this.name,
     this.phone,
     this.photoUrl,
@@ -52,15 +60,29 @@ class BookingDriver {
     this.assignedAt,
   });
 
+  final String? driverId;
+
+  /// The printable roster code, e.g. `DRV-0007`, which is what an operator asks
+  /// for over the phone.
+  final String? driverCode;
+
   final String? name;
+
+  /// The driver's mobile number in E.164 - the same number the allocation SMS
+  /// carries.
   final String? phone;
+
   final String? photoUrl;
   final double? rating;
   final String? vehicleNumber;
   final String? vehicleModel;
   final DateTime? assignedAt;
 
+  bool get hasPhone => (phone ?? '').isNotEmpty;
+
   factory BookingDriver.fromJson(Map<String, dynamic> json) => BookingDriver(
+        driverId: json['driverId'] as String?,
+        driverCode: json['driverCode'] as String?,
         name: json['name'] as String?,
         phone: json['phone'] as String?,
         photoUrl: json['photoUrl'] as String?,
@@ -70,6 +92,171 @@ class BookingDriver {
         assignedAt: json['assignedAt'] is String
             ? DateTime.tryParse(json['assignedAt'] as String)
             : null,
+      );
+}
+
+/// Whether a driver has been allocated, as a state in its own right.
+///
+/// The backend derives this from the driver snapshot and sends it on every
+/// booking, allocated or not, so the Booked Details screen can show a
+/// "Driver allocated" field that reads correctly from the moment the booking is
+/// made rather than appearing only once there is a driver.
+class BookingDriverAllocation {
+  const BookingDriverAllocation({
+    required this.status,
+    this.allocatedAt,
+    this.driverName,
+    this.driverPhone,
+  });
+
+  final DriverAllocationStatus status;
+  final DateTime? allocatedAt;
+  final String? driverName;
+  final String? driverPhone;
+
+  bool get isAllocated => status.isAllocated;
+
+  /// For a booking that arrived without the block - the socket's payload, or an
+  /// older server. Derived from the driver, which is the rule the backend's own
+  /// virtual applies.
+  factory BookingDriverAllocation.fromDriver(BookingDriver? driver) =>
+      BookingDriverAllocation(
+        status: (driver?.name ?? '').isNotEmpty
+            ? DriverAllocationStatus.allocated
+            : DriverAllocationStatus.notAllocated,
+        allocatedAt: driver?.assignedAt,
+        driverName: driver?.name,
+        driverPhone: driver?.phone,
+      );
+
+  factory BookingDriverAllocation.fromJson(Map<String, dynamic> json) =>
+      BookingDriverAllocation(
+        status: DriverAllocationStatus.fromApi(json['status'] as String?),
+        allocatedAt: json['allocatedAt'] is String
+            ? DateTime.tryParse(json['allocatedAt'] as String)
+            : null,
+        driverName: json['driverName'] as String?,
+        driverPhone: json['driverPhone'] as String?,
+      );
+}
+
+/// The vehicle as it was when it was booked, with its photographs.
+///
+/// A snapshot, not a live read: the operator re-prices vehicles, replaces
+/// photographs and eventually sells them, and a booking from March must still
+/// show the car that went out. The gallery is part of the snapshot for the same
+/// reason the registration number is.
+class BookingVehicle {
+  const BookingVehicle({
+    this.id,
+    this.name,
+    this.brand,
+    this.model,
+    this.year,
+    this.registrationNumber,
+    this.category,
+    this.seatingCapacity,
+    this.fuelType,
+    this.transmission,
+    this.imageUrl,
+    this.imageUrls = const [],
+  });
+
+  final String? id;
+  final String? name;
+  final String? brand;
+  final String? model;
+  final int? year;
+  final String? registrationNumber;
+  final String? category;
+  final int? seatingCapacity;
+  final String? fuelType;
+  final String? transmission;
+
+  /// The cover photo.
+  final String? imageUrl;
+
+  /// Every photo, cover first.
+  final List<String> imageUrls;
+
+  /// The gallery to show, falling back to the cover for a booking written
+  /// before the whole set was snapshotted.
+  List<String> get photos {
+    if (imageUrls.isNotEmpty) return imageUrls;
+    return (imageUrl ?? '').isEmpty ? const [] : [imageUrl!];
+  }
+
+  bool get hasPhotos => photos.isNotEmpty;
+
+  /// `Maruti Swift Dzire 2022`.
+  String get makeAndModel =>
+      [brand, model, year?.toString()].where((part) => (part ?? '').isNotEmpty).join(' ');
+
+  factory BookingVehicle.fromJson(Map<String, dynamic> json) {
+    final urls = json['imageUrls'];
+
+    return BookingVehicle(
+      id: json['id'] as String?,
+      name: json['name'] as String?,
+      brand: json['brand'] as String?,
+      model: json['model'] as String?,
+      year: (json['year'] as num?)?.toInt(),
+      registrationNumber: json['registrationNumber'] as String?,
+      category: json['category'] as String?,
+      seatingCapacity: (json['seatingCapacity'] as num?)?.toInt(),
+      fuelType: json['fuelType'] as String?,
+      transmission: json['transmission'] as String?,
+      imageUrl: json['imageUrl'] as String?,
+      imageUrls: urls is List
+          ? urls.map((url) => '$url').where((url) => url.isNotEmpty).toList()
+          : const [],
+    );
+  }
+}
+
+/// The hire period and the arithmetic that turned it into money.
+class BookingHire {
+  const BookingHire({
+    required this.startAt,
+    required this.endAt,
+    required this.days,
+    required this.dailyRate,
+    required this.hireCharge,
+    required this.securityDeposit,
+    required this.amountDue,
+    this.currencySymbol = '',
+  });
+
+  /// The booking date the customer chose.
+  final DateTime startAt;
+
+  /// When the vehicle comes back.
+  final DateTime endAt;
+
+  /// Billable days, as charged. Sent by the server rather than recomputed here,
+  /// because this is the multiplier the customer was shown.
+  final int days;
+
+  final double dailyRate;
+  final double hireCharge;
+
+  /// Refundable, and separate from [hireCharge] so the UI can say so.
+  final double securityDeposit;
+
+  /// The one number the customer is asked to pay.
+  final double amountDue;
+
+  final String currencySymbol;
+
+  factory BookingHire.fromJson(Map<String, dynamic> json) => BookingHire(
+        startAt: DateTime.tryParse('${json['startAt']}')?.toLocal() ?? DateTime.now(),
+        endAt: DateTime.tryParse('${json['endAt']}')?.toLocal() ?? DateTime.now(),
+        days: (json['days'] as num?)?.toInt() ?? 1,
+        dailyRate: (json['dailyRate'] as num?)?.toDouble() ?? 0,
+        hireCharge: (json['hireCharge'] as num?)?.toDouble() ?? 0,
+        securityDeposit: (json['securityDeposit'] as num?)?.toDouble() ?? 0,
+        amountDue: (json['amountDue'] as num?)?.toDouble() ?? 0,
+        currencySymbol: (json['currencySymbol'] ?? '') as String,
       );
 }
 
@@ -139,12 +326,15 @@ class Booking {
     this.customerEmail,
     this.vehicleTypeId,
     this.vehicleTypeCode,
+    this.vehicle,
+    this.hire,
     this.finalFare,
     this.fareBreakdown,
     this.routePolyline,
     this.scheduledAt,
     this.specialInstructions,
     this.driver,
+    this.driverAllocation,
     this.businessContact,
     this.cancellation,
     this.statusHistory = const [],
@@ -165,6 +355,13 @@ class Booking {
   final String? vehicleTypeId;
   final String vehicleTypeName;
   final String? vehicleTypeCode;
+
+  /// The actual vehicle, with its photographs. Null on a historical booking
+  /// that only ever recorded a category.
+  final BookingVehicle? vehicle;
+
+  /// The hire period. Null on a historical point-to-point trip.
+  final BookingHire? hire;
 
   final Place pickup;
   final Place destination;
@@ -188,6 +385,10 @@ class Booking {
   final String? specialInstructions;
 
   final BookingDriver? driver;
+
+  /// Whether a driver has been allocated, readable before one has been.
+  final BookingDriverAllocation? driverAllocation;
+
   final BookingBusinessContact? businessContact;
   final BookingCancellation? cancellation;
   final List<BookingStatusEvent> statusHistory;
@@ -205,6 +406,22 @@ class Booking {
 
   bool get isScheduled => scheduledAt != null;
 
+  bool get isHire => hire != null;
+
+  /// The date the vehicle is wanted - the "Booking Date" on the details screen.
+  /// Falls back to the scheduled pickup for a historical trip.
+  DateTime? get bookingDate => hire?.startAt ?? scheduledAt;
+
+  /// Never null, so a screen can show the field without a null check. Derived
+  /// from the driver when the server did not send the block.
+  BookingDriverAllocation get allocation =>
+      driverAllocation ?? BookingDriverAllocation.fromDriver(driver);
+
+  bool get isDriverAllocated => allocation.isAllocated;
+
+  /// The photographs to show for this booking's vehicle.
+  List<String> get vehiclePhotos => vehicle?.photos ?? const [];
+
   factory Booking.fromJson(Map<String, dynamic> json) {
     final customer = json['customer'];
     final vehicleType = json['vehicleType'];
@@ -220,6 +437,12 @@ class Booking {
       vehicleTypeId: vehicleType is Map ? vehicleType['id'] as String? : null,
       vehicleTypeName: vehicleType is Map ? ((vehicleType['name'] ?? '') as String) : '',
       vehicleTypeCode: vehicleType is Map ? vehicleType['code'] as String? : null,
+      vehicle: json['vehicle'] is Map
+          ? BookingVehicle.fromJson(Map<String, dynamic>.from(json['vehicle'] as Map))
+          : null,
+      hire: json['hire'] is Map
+          ? BookingHire.fromJson(Map<String, dynamic>.from(json['hire'] as Map))
+          : null,
       pickup: Place.fromJson(Map<String, dynamic>.from(json['pickup'] as Map)),
       destination: Place.fromJson(Map<String, dynamic>.from(json['destination'] as Map)),
       distanceKm: (json['distanceKm'] as num?)?.toDouble() ?? 0,
@@ -239,6 +462,10 @@ class Booking {
       specialInstructions: json['specialInstructions'] as String?,
       driver: json['driver'] is Map
           ? BookingDriver.fromJson(Map<String, dynamic>.from(json['driver'] as Map))
+          : null,
+      driverAllocation: json['driverAllocation'] is Map
+          ? BookingDriverAllocation.fromJson(
+              Map<String, dynamic>.from(json['driverAllocation'] as Map))
           : null,
       businessContact: json['businessContact'] is Map
           ? BookingBusinessContact.fromJson(
@@ -279,6 +506,14 @@ class BookingSummary {
     this.distanceKm = 0,
     this.finalFare,
     this.scheduledAt,
+    this.vehicleName,
+    this.registrationNumber,
+    this.vehicleImageUrl,
+    this.hireStartAt,
+    this.hireEndAt,
+    this.hireDays,
+    this.allocationStatus = DriverAllocationStatus.notAllocated,
+    this.driverName,
   });
 
   final String id;
@@ -295,7 +530,27 @@ class BookingSummary {
   final double? finalFare;
   final DateTime? scheduledAt;
 
+  /// Enough of the car to render a row without fetching the whole booking.
+  final String? vehicleName;
+  final String? registrationNumber;
+  final String? vehicleImageUrl;
+
+  final DateTime? hireStartAt;
+  final DateTime? hireEndAt;
+  final int? hireDays;
+
+  /// Whether a driver is on it yet, so the list can badge it without opening
+  /// the booking. This is the reason the backend sends the status as a string.
+  final DriverAllocationStatus allocationStatus;
+  final String? driverName;
+
   bool get isFareFinal => finalFare != null;
+
+  bool get isHire => hireStartAt != null;
+
+  DateTime? get bookingDate => hireStartAt ?? scheduledAt;
+
+  bool get isDriverAllocated => allocationStatus.isAllocated;
 
   factory BookingSummary.fromJson(Map<String, dynamic> json) => BookingSummary(
         id: json['id'] as String,
@@ -315,6 +570,20 @@ class BookingSummary {
         scheduledAt: json['scheduledAt'] is String
             ? DateTime.tryParse(json['scheduledAt'] as String)
             : null,
+        vehicleName: json['vehicleName'] as String?,
+        registrationNumber: json['registrationNumber'] as String?,
+        vehicleImageUrl: json['vehicleImageUrl'] as String?,
+        hireStartAt: json['hireStartAt'] is String
+            ? DateTime.tryParse(json['hireStartAt'] as String)?.toLocal()
+            : null,
+        hireEndAt: json['hireEndAt'] is String
+            ? DateTime.tryParse(json['hireEndAt'] as String)?.toLocal()
+            : null,
+        hireDays: (json['hireDays'] as num?)?.toInt(),
+        allocationStatus: DriverAllocationStatus.fromApi(
+          json['driverAllocationStatus'] as String?,
+        ),
+        driverName: json['driverName'] as String?,
       );
 }
 

@@ -37,6 +37,18 @@ Future<void> _start() async {
     FlutterError.presentError(details);
   };
 
+  /// Raise the decoded-image budget.
+  ///
+  /// A vehicle gallery is five photographs the operator uploaded at whatever
+  /// resolution their phone produced. Flutter's 100MB default is enough for
+  /// about three of those decoded at full size, so the fourth evicted the
+  /// first and swiping back re-downloaded it. `AppNetworkImage` cuts the cost
+  /// per image by decoding at display size; this makes sure the ones that fit
+  /// stay put.
+  PaintingBinding.instance.imageCache
+    ..maximumSizeBytes = AppConfig.imageCacheBytes
+    ..maximumSize = AppConfig.imageCacheCount;
+
   try {
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,

@@ -93,7 +93,7 @@ class _CustomerAppState extends ConsumerState<CustomerApp> {
     });
 
     return MaterialApp.router(
-      title: 'Taxi Booking',
+      title: 'PP Travels',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

@@ -90,7 +90,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   const AppLogo(size: 36),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
-                    child: Text('Taxi Booking', style: theme.textTheme.titleSmall),
+                    child: Text(
+                      'PP Travels',
+                      style: theme.textTheme.titleSmall,
+                    ),
                   ),
                   // Skip is always available: nobody should be forced through
                   // three slides to reach a login screen.
@@ -120,7 +123,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         height: 7,
                         width: isActive ? 24 : 7,
                         decoration: BoxDecoration(
-                          color: isActive ? AppColors.amber : theme.colorScheme.outline,
+                          color: isActive
+                              ? AppColors.amber
+                              : theme.colorScheme.outline,
                           borderRadius: BorderRadius.circular(AppRadius.pill),
                         ),
                       );
@@ -143,7 +148,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 }
 
 class _OnboardingPage extends StatelessWidget {
-  const _OnboardingPage({required this.icon, required this.title, required this.body});
+  const _OnboardingPage({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
 
   final IconData icon;
   final String title;
@@ -170,7 +179,11 @@ class _OnboardingPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.huge),
-          Text(title, style: theme.textTheme.headlineSmall, textAlign: TextAlign.center),
+          Text(
+            title,
+            style: theme.textTheme.headlineSmall,
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: AppSpacing.md),
           Text(
             body,

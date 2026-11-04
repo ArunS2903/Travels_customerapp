@@ -31,20 +31,66 @@ class AppConfig {
   /// the API prefix stripped, which is right for the standard deployment.
   static const String socketUrlOverride = String.fromEnvironment('SOCKET_URL');
 
-  static String get socketUrl {
-    if (socketUrlOverride.isNotEmpty) return socketUrlOverride;
+  static String get socketUrl => apiOrigin;
+
+  /// [apiBaseUrl] with the `/api/v1` prefix stripped: the server's own origin.
+  ///
+  /// Cached in a static rather than recomputed, because it is read once per
+  /// image in a scrolling gallery.
+  static final String apiOrigin = () {
+    if (socketUrlOverride.isNotEmpty) return _stripTrailingSlash(socketUrlOverride);
     final index = apiBaseUrl.indexOf('/api/');
-    return index == -1 ? apiBaseUrl : apiBaseUrl.substring(0, index);
+    return _stripTrailingSlash(index == -1 ? apiBaseUrl : apiBaseUrl.substring(0, index));
+  }();
+
+  static String _stripTrailingSlash(String value) =>
+      value.endsWith('/') ? value.substring(0, value.length - 1) : value;
+
+  /// Turns a stored image reference into a URL this device can actually fetch.
+  ///
+  /// The backend serves a locally stored photo as a root-relative path
+  /// (`/uploads/vehicles/ab12.jpg`) precisely so this can happen: a client that
+  /// can reach the API can by definition reach a path on the same origin. An
+  /// absolute URL cannot make that promise — the one the server used to store
+  /// was built from the uploading browser's host, so an admin working at
+  /// `localhost:5000` wrote a URL that on a phone means the phone, and every
+  /// vehicle photo hung until it timed out.
+  ///
+  /// A full `http(s)` URL is passed through: that is Cloudinary or a CDN, and
+  /// already correct. A `localhost` or `127.0.0.1` URL is *rehosted* onto
+  /// [apiOrigin], because rows written before the server was fixed still carry
+  /// one and they would otherwise stay broken until somebody re-uploaded every
+  /// photograph.
+  static String? resolveMediaUrl(String? reference) {
+    final value = reference?.trim() ?? '';
+    if (value.isEmpty) return null;
+
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      final parsed = Uri.tryParse(value);
+      if (parsed == null) return value;
+
+      final isLoopback = parsed.host == 'localhost' ||
+          parsed.host == '127.0.0.1' ||
+          parsed.host == '0.0.0.0' ||
+          // The emulator alias for the host machine, which is only meaningful
+          // on an emulator — a physical device cannot route it either.
+          parsed.host == '10.0.2.2';
+
+      if (!isLoopback) return value;
+
+      final path = parsed.hasQuery ? '${parsed.path}?${parsed.query}' : parsed.path;
+      return '$apiOrigin$path';
+    }
+
+    return value.startsWith('/') ? '$apiOrigin$value' : '$apiOrigin/$value';
   }
 
-  /// Android/iOS Maps SDK key. Also used for the Places and Geocoding web
-  /// services when [enablePlacesAutocomplete] is true.
-  ///
-  /// On Android the SDK reads its key from the manifest (supplied by the
-  /// `MAPS_API_KEY` Gradle property), so this value is only needed for the
-  /// HTTP Places calls. Without it, address search falls back to the on-device
-  /// geocoder, which is less precise but needs no key.
-  static const String googleMapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+  /// Places and Geocoding web-service key used by the app's HTTP requests.
+  /// The Android Maps SDK key is configured separately in the native manifest.
+  /// Without this value, address search falls back to the on-device geocoder.
+  static const String googleMapsApiKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+  );
 
   static bool get enablePlacesAutocomplete => googleMapsApiKey.isNotEmpty;
 
@@ -53,11 +99,16 @@ class AppConfig {
   // builds and runs without a Firebase project. When any of these is empty,
   // push notifications are disabled and the profile screen explains why.
 
-  static const String firebaseProjectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
-  static const String firebaseApiKey = String.fromEnvironment('FIREBASE_API_KEY');
+  static const String firebaseProjectId = String.fromEnvironment(
+    'FIREBASE_PROJECT_ID',
+  );
+  static const String firebaseApiKey = String.fromEnvironment(
+    'FIREBASE_API_KEY',
+  );
   static const String firebaseAppId = String.fromEnvironment('FIREBASE_APP_ID');
-  static const String firebaseMessagingSenderId =
-      String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
+  static const String firebaseMessagingSenderId = String.fromEnvironment(
+    'FIREBASE_MESSAGING_SENDER_ID',
+  );
 
   static bool get isFirebaseConfigured =>
       firebaseProjectId.isNotEmpty &&
@@ -77,9 +128,34 @@ class AppConfig {
     return _debugLoggingRequested && !inRelease;
   }
 
-  static const Duration connectTimeout = Duration(seconds: 15);
-  static const Duration receiveTimeout = Duration(seconds: 20);
-  static const Duration sendTimeout = Duration(seconds: 20);
+  /// Per-attempt network timeouts.
+  ///
+  /// These are deliberately short, and the reason is arithmetic. Every timeout
+  /// is multiplied by the retry interceptor, so the old 15s/20s pair over three
+  /// attempts meant a customer on a dead connection watched a spinner for the
+  /// best part of a minute before being told anything. Measured against this
+  /// backend the slowest read is well under a second, so eight seconds is
+  /// already a generous outlier — anything past it is a broken route, not a slow
+  /// one, and saying so quickly is worth more than waiting.
+  ///
+  /// Two attempts rather than three: see [RetryInterceptor]. Worst case is now
+  /// about 18 seconds instead of about 65.
+  static const Duration connectTimeout = Duration(seconds: 8);
+  static const Duration receiveTimeout = Duration(seconds: 10);
+  static const Duration sendTimeout = Duration(seconds: 15);
+
+  /// How many times a safe request is attempted in total, including the first.
+  static const int networkAttempts = 2;
+
+  /// Memory budget for decoded images.
+  ///
+  /// Flutter's default is 100MB, which a gallery of five full-resolution
+  /// vehicle photographs can exhaust on a mid-range phone — and an exhausted
+  /// cache means every swipe back re-downloads and re-decodes. Raised a little,
+  /// but the real saving is decoding at display size rather than at source
+  /// size; see `AppNetworkImage`.
+  static const int imageCacheBytes = 160 * 1024 * 1024;
+  static const int imageCacheCount = 200;
 
   /// Fallback map centre, used only before the first location fix arrives.
   static const double defaultLatitude = 11.0168;

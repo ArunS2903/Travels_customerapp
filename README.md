@@ -18,9 +18,9 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5000/api/v1
 `10.0.2.2` is the Android emulator's alias for the host machine's `localhost`.
 A physical device needs your machine's LAN address instead.
 
-It runs with no Maps key and no Firebase project. Maps render blank, push is
-off, and address search falls back to the on-device geocoder — every screen that
-depends on one of those says so, and booking works end to end regardless.
+It runs with no Maps key and no Firebase project. Without the native Maps SDK
+key, map tiles are blank; push is off; and address search falls back to the
+on-device geocoder. Booking works end to end regardless.
 
 ### Talking to an http:// dev server
 
@@ -36,14 +36,15 @@ builds at an HTTPS URL.
 
 ## Configuration
 
-Nothing environment-specific is committed. Everything comes from
-`--dart-define`, read in `lib/core/config/app_config.dart`.
+Nothing environment-specific is committed. Dart configuration comes from
+`--dart-define`, read in `lib/core/config/app_config.dart`. The Android Maps SDK
+key is read separately from the ignored `android/local.properties`.
 
 | Define | Default | Effect when unset |
 |---|---|---|
 | `API_BASE_URL` | `http://10.0.2.2:5000/api/v1` | — |
 | `SOCKET_URL` | derived from `API_BASE_URL` | — |
-| `GOOGLE_MAPS_API_KEY` | empty | Places autocomplete falls back to the device geocoder, which needs fuller addresses |
+| `GOOGLE_MAPS_API_KEY` | empty | Places autocomplete falls back to the device geocoder, which needs fuller addresses; does not control map tiles |
 | `FIREBASE_PROJECT_ID` | empty | push disabled |
 | `FIREBASE_API_KEY` | empty | push disabled |
 | `FIREBASE_APP_ID` | empty | push disabled |
@@ -57,7 +58,8 @@ a glance why something is missing instead of assuming it is broken.
 ### The Android Maps SDK key is separate
 
 The native Maps SDK reads its key from the manifest, not from `--dart-define`.
-Put it in `android/local.properties` (gitignored):
+The map preview, map picker, and booking route use this native key. Put it in
+`android/local.properties` (gitignored):
 
 ```ini
 MAPS_API_KEY=AIza...

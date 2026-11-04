@@ -9,7 +9,12 @@ import '../../core/theme/app_spacing.dart';
 /// An operator replacing this with their own logo only needs to change the
 /// [Icon] and the gradient here.
 class AppLogo extends StatelessWidget {
-  const AppLogo({super.key, this.size = 56, this.showWordmark = false, this.wordmark});
+  const AppLogo({
+    super.key,
+    this.size = 56,
+    this.showWordmark = false,
+    this.wordmark,
+  });
 
   final double size;
   final bool showWordmark;
@@ -50,7 +55,7 @@ class AppLogo extends StatelessWidget {
         badge,
         const SizedBox(height: AppSpacing.lg),
         Text(
-          wordmark ?? 'Taxi Booking',
+          wordmark ?? 'PP Travels',
           style: theme.textTheme.headlineSmall,
           textAlign: TextAlign.center,
         ),

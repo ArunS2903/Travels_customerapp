@@ -15,19 +15,25 @@ import '../../../vehicle_selection/providers/vehicle_providers.dart';
 IconData vehicleIconFor(VehicleType vehicle) {
   final key = (vehicle.iconName ?? vehicle.code).toLowerCase();
 
-  if (key.contains('mini') || key.contains('hatch'))
+  if (key.contains('mini') || key.contains('hatch')) {
     return Icons.directions_car_rounded;
-  if (key.contains('sedan') || key.contains('saloon'))
+  }
+  if (key.contains('sedan') || key.contains('saloon')) {
     return Icons.local_taxi_rounded;
-  if (key.contains('suv') || key.contains('xl'))
+  }
+  if (key.contains('suv') || key.contains('xl')) {
     return Icons.airport_shuttle_rounded;
+  }
   if (key.contains('premium') || key.contains('lux')) return Icons.star_rounded;
-  if (key.contains('auto') || key.contains('rick'))
+  if (key.contains('auto') || key.contains('rick')) {
     return Icons.electric_rickshaw_rounded;
-  if (key.contains('bike') || key.contains('moto'))
+  }
+  if (key.contains('bike') || key.contains('moto')) {
     return Icons.two_wheeler_rounded;
-  if (key.contains('van') || key.contains('tempo'))
+  }
+  if (key.contains('van') || key.contains('tempo')) {
     return Icons.airport_shuttle_rounded;
+  }
   return Icons.directions_car_filled_rounded;
 }
 

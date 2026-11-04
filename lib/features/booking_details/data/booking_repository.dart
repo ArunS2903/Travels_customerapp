@@ -36,26 +36,34 @@ class BookingRepository {
   /// booking.
   static String newIdempotencyKey() => _uuid.v4();
 
+  /// Books one specific vehicle for one period.
+  ///
+  /// What is deliberately *not* sent: no amount, no day count, no daily rate.
+  /// All three come from the vehicle and the dates server-side, so the client
+  /// cannot propose a price. The quote the customer was shown comes from the
+  /// same code path that prices the booking, which is why the two agree.
   Future<BookingCreationResult> createBooking({
-    required String vehicleTypeId,
+    required String vehicleId,
+    required DateTime startAt,
+    required DateTime endAt,
     required Place pickup,
     required Place destination,
     required PaymentMethod paymentMethod,
     required String idempotencyKey,
     String? specialInstructions,
-    DateTime? scheduledAt,
   }) async {
     final response = await _client.postRaw(
       ApiEndpoints.bookings,
       body: {
-        'vehicleTypeId': vehicleTypeId,
+        'vehicleId': vehicleId,
+        'startAt': startAt.toUtc().toIso8601String(),
+        'endAt': endAt.toUtc().toIso8601String(),
         'pickup': pickup.toJson(),
         'destination': destination.toJson(),
         'paymentMethod': paymentMethod.apiValue,
         'idempotencyKey': idempotencyKey,
         if (specialInstructions != null && specialInstructions.trim().isNotEmpty)
           'specialInstructions': specialInstructions.trim(),
-        if (scheduledAt != null) 'scheduledAt': scheduledAt.toUtc().toIso8601String(),
       },
       // Safe to retry precisely because of the idempotency key above.
       retryable: true,

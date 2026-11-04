@@ -189,7 +189,15 @@ class _BookingCard extends StatelessWidget {
                     children: [
                       Text(booking.bookingCode, style: theme.textTheme.titleSmall),
                       Text(
-                        Formatters.relativeDateTime(booking.scheduledAt ?? booking.createdAt),
+                        // The booking date, not when the row was written: a
+                        // customer scanning this list is looking for "the car I
+                        // have on the 12th".
+                        booking.isHire
+                            ? '${Formatters.date(booking.hireStartAt)} - '
+                                '${Formatters.date(booking.hireEndAt)}'
+                            : Formatters.relativeDateTime(
+                                booking.scheduledAt ?? booking.createdAt,
+                              ),
                         style: theme.textTheme.labelSmall,
                       ),
                     ],
@@ -207,13 +215,29 @@ class _BookingCard extends StatelessWidget {
               destinationAddress: booking.destinationAddress,
             ),
             const SizedBox(height: AppSpacing.md),
+
+            // Whether a driver is on it yet, without opening the booking. The
+            // list endpoint sends the status for exactly this, so the row does
+            // not have to infer it from the booking status - a booking can be
+            // Confirmed with nobody allocated, and In Progress with somebody.
+            if (booking.isHire) ...[
+              _AllocationRow(booking: booking),
+              const SizedBox(height: AppSpacing.md),
+            ],
+
             Row(
               children: [
                 InfoPill(
                   icon: Icons.directions_car_filled_rounded,
-                  label: booking.vehicleTypeName,
+                  label: booking.vehicleName ?? booking.vehicleTypeName,
                 ),
-                if (booking.distanceKm > 0) ...[
+                if ((booking.registrationNumber ?? '').isNotEmpty) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  InfoPill(
+                    icon: Icons.confirmation_number_rounded,
+                    label: booking.registrationNumber!,
+                  ),
+                ] else if (booking.distanceKm > 0) ...[
                   const SizedBox(width: AppSpacing.sm),
                   InfoPill(
                     icon: Icons.straighten_rounded,
@@ -240,6 +264,50 @@ class _BookingCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A one-line driver allocation status for a booking row.
+///
+/// Names the driver once there is one, because "Driver allocated" without a
+/// name is a state change the customer cannot act on, and the name is what
+/// tells them the SMS they got belongs to this booking.
+class _AllocationRow extends StatelessWidget {
+  const _AllocationRow({required this.booking});
+
+  final BookingSummary booking;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final status = booking.allocationStatus;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: status.softColor,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Row(
+        children: [
+          Icon(status.icon, size: 15, color: status.color),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              booking.isDriverAllocated && (booking.driverName ?? '').isNotEmpty
+                  ? 'Driver: ${booking.driverName}'
+                  : status.label,
+              style: theme.textTheme.labelMedium?.copyWith(color: status.color),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }

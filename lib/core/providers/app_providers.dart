@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/authentication/data/auth_repository.dart';
 import '../../features/booking_details/data/booking_repository.dart';
+import '../../features/fleet/data/fleet_repository.dart';
 import '../../features/notifications/data/notification_repository.dart';
 import '../../features/profile/data/customer_repository.dart';
 import '../../features/support/data/support_repository.dart';
@@ -85,6 +86,11 @@ final customerRepositoryProvider = Provider<CustomerRepository>(
 
 final vehicleRepositoryProvider = Provider<VehicleRepository>(
   (ref) => VehicleRepository(ref.watch(apiClientProvider)),
+);
+
+/// The fleet: individual vehicles, their photographs, and hire quotes.
+final fleetRepositoryProvider = Provider<FleetRepository>(
+  (ref) => FleetRepository(ref.watch(apiClientProvider)),
 );
 
 final bookingRepositoryProvider = Provider<BookingRepository>(

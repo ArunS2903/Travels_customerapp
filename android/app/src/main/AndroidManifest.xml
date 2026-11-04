@@ -28,7 +28,7 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <application
-        android:label="Taxi Booking"
+        android:label="PP Travels"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">
@@ -67,10 +67,10 @@
 
                 MAPS_API_KEY=AIza...
 
-            With no key the map tiles render blank; the app still runs, and the
-            UI says why. This key must be restricted to this app's package name
-            and SHA-1 in the Google Cloud console, and must be a different key
-            from the server-side one in the backend's .env.
+            With no key the map tiles render blank; the app still runs. This
+            key must be restricted to this app's package name and SHA-1 in the
+            Google Cloud console, and must be different from the server-side
+            key in the backend's .env.
         -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"

@@ -16,19 +16,26 @@ import '../../../shared/widgets/state_views.dart';
 import '../../../shared/widgets/status_chip.dart';
 import '../../booking_cancellation/presentation/cancel_booking_sheet.dart';
 import '../../booking_confirmation/presentation/widgets/fare_breakdown_view.dart';
+import '../../fleet/presentation/widgets/vehicle_photo_gallery.dart';
 import '../../realtime/socket_service.dart';
 import '../../support/presentation/widgets/business_contact_card.dart';
 import '../models/booking.dart';
 import '../providers/booking_detail_providers.dart';
 import 'widgets/booking_route_map.dart';
+import 'widgets/driver_allocation_card.dart';
 import 'widgets/status_timeline.dart';
 
-/// Everything about one booking.
+/// Everything about one booking: the Booked Details screen.
 ///
-/// Status comes from the backend and only the backend. It arrives three ways,
-/// in increasing order of latency: a Socket.IO push, a push notification that
-/// invalidates this provider, and pull-to-refresh. The socket is a convenience
-/// - the HTTP read on open is what guarantees correctness.
+/// It is laid out to answer the questions in the order a customer asks them:
+/// which booking is this, what is its status, has a driver been allocated and
+/// who are they, which vehicle is it and what does it look like, where is it
+/// going, what does it cost.
+///
+/// Status and driver details come from the backend and only the backend. They
+/// arrive three ways, in increasing order of latency: a Socket.IO push, a push
+/// notification that invalidates this provider, and pull-to-refresh. The socket
+/// is a convenience - the HTTP read on open is what guarantees correctness.
 class BookingDetailsScreen extends ConsumerStatefulWidget {
   const BookingDetailsScreen({
     super.key,
@@ -43,7 +50,8 @@ class BookingDetailsScreen extends ConsumerStatefulWidget {
   final bool justCreated;
 
   @override
-  ConsumerState<BookingDetailsScreen> createState() => _BookingDetailsScreenState();
+  ConsumerState<BookingDetailsScreen> createState() =>
+      _BookingDetailsScreenState();
 }
 
 class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
@@ -66,12 +74,24 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
     AppFeedback.showSuccess(context, 'Booking reference $code copied.');
   }
 
+  Future<void> _copyDriverNumber(String phone) async {
+    await Clipboard.setData(ClipboardData(text: phone));
+    if (!mounted) return;
+    AppFeedback.showSuccess(context, 'Driver number copied.');
+  }
+
   Future<void> _callDriver(String phone) async {
     final uri = Uri(scheme: 'tel', path: phone);
     try {
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!launched && mounted) {
-        AppFeedback.showError(context, 'No phone app available on this device.');
+        AppFeedback.showError(
+          context,
+          'No phone app available on this device.',
+        );
       }
     } on Object {
       if (mounted) AppFeedback.showError(context, 'Could not start a call.');
@@ -92,7 +112,7 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
       context,
       (cancelled.cancellation?.fee ?? 0) > 0
           ? 'Booking cancelled. A cancellation fee of '
-              '${Formatters.money(cancelled.cancellation!.fee, symbol: cancelled.currencySymbol)} applies.'
+                '${Formatters.money(cancelled.cancellation!.fee, symbol: cancelled.currencySymbol)} applies.'
           : 'Booking cancelled. No fee was charged.',
     );
 
@@ -113,6 +133,14 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          onPressed: () {
+            context.go(AppRoutes.home);
+          },
+          tooltip: 'Back to Home',
+          icon: const Icon(Icons.arrow_back_rounded, size: 24),
+        ),
         title: const Text('Booking details'),
         actions: [
           IconButton(
@@ -172,19 +200,29 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Booking reference', style: theme.textTheme.labelSmall),
+                          Text(
+                            'Booking reference',
+                            style: theme.textTheme.labelSmall,
+                          ),
                           const SizedBox(height: 2),
                           Row(
                             children: [
-                              Text(booking.bookingCode, style: theme.textTheme.titleLarge),
+                              Text(
+                                booking.bookingCode,
+                                style: theme.textTheme.titleLarge,
+                              ),
                               const SizedBox(width: AppSpacing.sm),
                               IconButton(
-                                onPressed: () => _copyReference(booking.bookingCode),
+                                onPressed: () =>
+                                    _copyReference(booking.bookingCode),
                                 icon: const Icon(Icons.copy_rounded, size: 17),
                                 tooltip: 'Copy reference',
                                 visualDensity: VisualDensity.compact,
                                 padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+                                constraints: const BoxConstraints(
+                                  minHeight: 32,
+                                  minWidth: 32,
+                                ),
                               ),
                             ],
                           ),
@@ -195,7 +233,10 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                Text(booking.status.description, style: theme.textTheme.bodySmall),
+                Text(
+                  booking.status.description,
+                  style: theme.textTheme.bodySmall,
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 Row(
                   children: [
@@ -223,20 +264,33 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
               ),
             )
           else if (booking.cancellation != null)
-            _CancellationCard(cancellation: booking.cancellation!, booking: booking),
+            _CancellationCard(
+              cancellation: booking.cancellation!,
+              booking: booking,
+            ),
           const SizedBox(height: AppSpacing.lg),
 
-          // --- Driver -------------------------------------------------------
-          if (booking.driver != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-              child: _DriverCard(
-                driver: booking.driver!,
-                onCall: booking.driver!.phone == null
-                    ? null
-                    : () => _callDriver(booking.driver!.phone!),
-              ),
-            ),
+          // --- Driver allocation --------------------------------------------
+          // Always shown, allocated or not: "has a driver been assigned?" is
+          // the question this screen exists to answer, and a card that appeared
+          // only once the answer was yes would leave the customer hunting for
+          // something that was not there.
+          DriverAllocationCard(
+            booking: booking,
+            onCall: booking.driver?.hasPhone ?? false
+                ? () => _callDriver(booking.driver!.phone!)
+                : null,
+            onCopyNumber: booking.driver?.hasPhone ?? false
+                ? () => _copyDriverNumber(booking.driver!.phone!)
+                : null,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
+          // --- The vehicle, and its photographs -----------------------------
+          if (booking.vehicle != null) ...[
+            _VehicleCard(booking: booking),
+            const SizedBox(height: AppSpacing.lg),
+          ],
 
           // --- Route --------------------------------------------------------
           SectionCard(
@@ -249,6 +303,9 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
                 RouteSummary(
                   pickupAddress: booking.pickup.address,
                   destinationAddress: booking.destination.address,
+                  destinationLabel: booking.isHire
+                      ? 'Drop location'
+                      : 'Destination',
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 const Divider(height: 1),
@@ -267,7 +324,7 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
                     const SizedBox(width: AppSpacing.sm),
                     InfoPill(
                       icon: Icons.directions_car_filled_rounded,
-                      label: booking.vehicleTypeName,
+                      label: booking.vehicle?.name ?? booking.vehicleTypeName,
                     ),
                   ],
                 ),
@@ -333,12 +390,39 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
             icon: Icons.info_outline_rounded,
             child: Column(
               children: [
-                InfoRow(label: 'Booked on', value: Formatters.dateTime(booking.createdAt)),
-                if (booking.isScheduled)
+                // The booking ID first: it is what a customer quotes back on
+                // the phone, and what every other field here is about.
+                InfoRow(
+                  label: 'Booking ID',
+                  value: booking.bookingCode,
+                  emphasised: true,
+                ),
+                if (booking.hire != null) ...[
+                  InfoRow(
+                    label: 'Booking date',
+                    value: Formatters.date(booking.hire!.startAt),
+                    icon: Icons.event_rounded,
+                  ),
+                  InfoRow(
+                    label: 'Return date',
+                    value: Formatters.date(booking.hire!.endAt),
+                    icon: Icons.event_repeat_rounded,
+                  ),
+                  InfoRow(
+                    label: 'Duration',
+                    value: booking.hire!.days == 1
+                        ? '1 day'
+                        : '${booking.hire!.days} days',
+                  ),
+                ] else if (booking.isScheduled)
                   InfoRow(
                     label: 'Scheduled pickup',
                     value: Formatters.scheduledAt(booking.scheduledAt),
                   ),
+                InfoRow(
+                  label: 'Booked on',
+                  value: Formatters.dateTime(booking.createdAt),
+                ),
                 if (booking.completedAt != null)
                   InfoRow(
                     label: 'Completed',
@@ -346,11 +430,17 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
                   ),
                 InfoRow(label: 'Name', value: booking.customerName),
                 if ((booking.customerPhone ?? '').isNotEmpty)
-                  InfoRow(label: 'Mobile', value: Formatters.phone(booking.customerPhone)),
+                  InfoRow(
+                    label: 'Mobile',
+                    value: Formatters.phone(booking.customerPhone),
+                  ),
                 if ((booking.customerEmail ?? '').isNotEmpty)
                   InfoRow(label: 'Email', value: booking.customerEmail!),
                 if ((booking.specialInstructions ?? '').isNotEmpty)
-                  InfoRow(label: 'Note for driver', value: booking.specialInstructions!),
+                  InfoRow(
+                    label: 'Note for driver',
+                    value: booking.specialInstructions!,
+                  ),
               ],
             ),
           ),
@@ -417,7 +507,9 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
               child: Text(
                 'Cancelling now costs '
                 '${Formatters.money(fee, symbol: booking.currencySymbol)}.',
-                style: theme.textTheme.labelSmall?.copyWith(color: AppColors.warning),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppColors.warning,
+                ),
               ),
             ),
           SecondaryButton(
@@ -432,72 +524,96 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
   }
 }
 
-class _DriverCard extends StatelessWidget {
-  const _DriverCard({required this.driver, this.onCall});
+/// The vehicle that was booked, with its photographs.
+///
+/// Both come from the snapshot stored on the booking, so a hire from last March
+/// still shows the car that went out at the rate it went out at - the operator
+/// re-prices vehicles, replaces photographs and eventually sells them.
+class _VehicleCard extends StatelessWidget {
+  const _VehicleCard({required this.booking});
 
-  final BookingDriver driver;
-  final VoidCallback? onCall;
+  final Booking booking;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final vehicle = booking.vehicle!;
+    final hire = booking.hire;
+    final symbol = booking.currencySymbol;
 
     return SectionCard(
-      title: 'Your driver',
-      icon: Icons.person_pin_circle_rounded,
-      child: Row(
+      title: 'Your vehicle',
+      icon: Icons.directions_car_filled_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 26,
-            backgroundColor: theme.colorScheme.surfaceContainerHighest,
-            backgroundImage: (driver.photoUrl ?? '').isEmpty
-                ? null
-                : NetworkImage(driver.photoUrl!),
-            child: (driver.photoUrl ?? '').isEmpty
-                ? Text(
-                    Formatters.initials(driver.name),
-                    style: theme.textTheme.titleMedium,
-                  )
-                : null,
-          ),
-          const SizedBox(width: AppSpacing.lg),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(driver.name ?? 'Driver assigned', style: theme.textTheme.titleSmall),
-                if ((driver.vehicleNumber ?? '').isNotEmpty ||
-                    (driver.vehicleModel ?? '').isNotEmpty)
-                  Text(
-                    [driver.vehicleModel, driver.vehicleNumber]
-                        .where((part) => (part ?? '').isNotEmpty)
-                        .join('  |  '),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                if (driver.rating != null)
-                  Row(
-                    children: [
-                      const Icon(Icons.star_rounded, size: 14, color: AppColors.amberDark),
-                      const SizedBox(width: 3),
-                      Text(
-                        driver.rating!.toStringAsFixed(1),
-                        style: theme.textTheme.labelSmall,
-                      ),
-                    ],
-                  ),
-              ],
+          if (vehicle.hasPhotos) ...[
+            VehiclePhotoGallery(
+              photoUrls: vehicle.photos,
+              heroTitle: vehicle.name,
+              height: 190,
             ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
+
+          Text(
+            vehicle.name ?? booking.vehicleTypeName,
+            style: theme.textTheme.titleSmall,
           ),
-          if (onCall != null)
-            IconButton(
-              onPressed: onCall,
-              tooltip: 'Call driver',
-              icon: const Icon(Icons.call_rounded),
-              style: IconButton.styleFrom(
-                backgroundColor: AppColors.success.withValues(alpha: 0.14),
-                foregroundColor: AppColors.success,
+          if (vehicle.makeAndModel.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(vehicle.makeAndModel, style: theme.textTheme.bodySmall),
+          ],
+          const SizedBox(height: AppSpacing.md),
+
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              if ((vehicle.registrationNumber ?? '').isNotEmpty)
+                InfoPill(
+                  icon: Icons.confirmation_number_rounded,
+                  label: vehicle.registrationNumber!,
+                ),
+              if (vehicle.seatingCapacity != null)
+                InfoPill(
+                  icon: Icons.airline_seat_recline_normal_rounded,
+                  label: '${vehicle.seatingCapacity} seats',
+                ),
+              if ((vehicle.fuelType ?? '').isNotEmpty)
+                InfoPill(
+                  icon: Icons.local_gas_station_rounded,
+                  label: vehicle.fuelType!,
+                ),
+              if ((vehicle.transmission ?? '').isNotEmpty)
+                InfoPill(
+                  icon: Icons.settings_rounded,
+                  label: vehicle.transmission!,
+                ),
+            ],
+          ),
+
+          if (hire != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            const Divider(height: 1),
+            const SizedBox(height: AppSpacing.sm),
+            InfoRow(
+              label: 'Daily rate',
+              value: Formatters.money(hire.dailyRate, symbol: symbol),
+            ),
+            InfoRow(
+              label: hire.days == 1
+                  ? 'Hire charge (1 day)'
+                  : 'Hire charge (${hire.days} days)',
+              value: Formatters.money(hire.hireCharge, symbol: symbol),
+            ),
+            if (hire.securityDeposit > 0)
+              InfoRow(
+                label: 'Security deposit',
+                value:
+                    '${Formatters.money(hire.securityDeposit, symbol: symbol)} (refundable)',
               ),
-            ),
+          ],
         ],
       ),
     );
@@ -526,7 +642,10 @@ class _CancellationCard extends StatelessWidget {
                 : (cancellation.cancelledByRole ?? 'the operator'),
           ),
           if (cancellation.cancelledAt != null)
-            InfoRow(label: 'When', value: Formatters.dateTime(cancellation.cancelledAt)),
+            InfoRow(
+              label: 'When',
+              value: Formatters.dateTime(cancellation.cancelledAt),
+            ),
           if ((cancellation.reason ?? '').isNotEmpty)
             InfoRow(label: 'Reason', value: cancellation.reason!),
           if ((cancellation.remarks ?? '').isNotEmpty)
@@ -534,9 +653,14 @@ class _CancellationCard extends StatelessWidget {
           InfoRow(
             label: 'Cancellation fee',
             value: cancellation.fee > 0
-                ? Formatters.money(cancellation.fee, symbol: booking.currencySymbol)
+                ? Formatters.money(
+                    cancellation.fee,
+                    symbol: booking.currencySymbol,
+                  )
                 : 'None',
-            valueColor: cancellation.fee > 0 ? AppColors.warning : AppColors.success,
+            valueColor: cancellation.fee > 0
+                ? AppColors.warning
+                : AppColors.success,
           ),
           if (cancellation.feeWaived && cancellation.fee == 0)
             Padding(

@@ -28,11 +28,13 @@ class MapPickerArgs {
   final double? initialLongitude;
   final String? initialAddress;
 
-  String get title =>
-      target == PlaceSearchTarget.pickup ? 'Set pickup point' : 'Set destination';
+  String get title => target == PlaceSearchTarget.pickup
+      ? 'Set pickup point'
+      : 'Set destination';
 
-  String get confirmLabel =>
-      target == PlaceSearchTarget.pickup ? 'Confirm pickup' : 'Confirm destination';
+  String get confirmLabel => target == PlaceSearchTarget.pickup
+      ? 'Confirm pickup'
+      : 'Confirm destination';
 }
 
 /// Drop a pin on the map.
@@ -79,7 +81,9 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
     // No coordinates supplied: try the device location so the customer starts
     // somewhere near themselves rather than at the fallback city centre.
     if (widget.args.initialLatitude == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _moveToCurrentLocation(silent: true));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _moveToCurrentLocation(silent: true),
+      );
     } else if (_address == null) {
       _resolveAddress();
     }
@@ -95,7 +99,9 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
     final generation = ++_geocodeGeneration;
     setState(() => _isGeocoding = true);
 
-    final address = await ref.read(locationServiceProvider).reverseGeocode(
+    final address = await ref
+        .read(locationServiceProvider)
+        .reverseGeocode(
           latitude: _target.latitude,
           longitude: _target.longitude,
         );
@@ -113,13 +119,17 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
     setState(() => _isLocating = true);
 
     try {
-      final position = await ref.read(locationServiceProvider).getCurrentPosition();
+      final position = await ref
+          .read(locationServiceProvider)
+          .getCurrentPosition();
       if (!mounted) return;
 
       final latLng = LatLng(position.latitude, position.longitude);
       setState(() => _target = latLng);
 
-      await _mapController?.animateCamera(CameraUpdate.newLatLngZoom(latLng, 16.5));
+      await _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(latLng, 16.5),
+      );
       await _resolveAddress();
     } on LocationException catch (error) {
       if (!mounted || silent) return;
@@ -138,7 +148,8 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
 
   void _confirm() {
     final place = Place(
-      address: _address ??
+      address:
+          _address ??
           'Pinned location (${_target.latitude.toStringAsFixed(5)}, '
               '${_target.longitude.toStringAsFixed(5)})',
       latitude: _target.latitude,
@@ -146,7 +157,10 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
     );
 
     if (!place.hasValidCoordinates) {
-      AppFeedback.showError(context, 'That location is not valid. Move the pin and try again.');
+      AppFeedback.showError(
+        context,
+        'That location is not valid. Move the pin and try again.',
+      );
       return;
     }
 
@@ -197,7 +211,9 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
                       Icon(
                         Icons.place_rounded,
                         size: 48,
-                        color: isPickup ? AppColors.pickupPin : AppColors.destinationPin,
+                        color: isPickup
+                            ? AppColors.pickupPin
+                            : AppColors.destinationPin,
                       ),
                       Container(
                         height: 6,
@@ -213,21 +229,6 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
               ),
             ),
           ),
-
-          if (AppConfig.googleMapsApiKey.isEmpty)
-            Positioned(
-              top: AppSpacing.md,
-              left: AppSpacing.pageGutter,
-              right: AppSpacing.pageGutter,
-              child: AppBanner(
-                icon: Icons.map_outlined,
-                accent: AppColors.warning,
-                message:
-                    'The map tiles need a Google Maps key. Pass GOOGLE_MAPS_API_KEY at build '
-                    'time (and set MAPS_API_KEY in android/local.properties) to see them. '
-                    'Picking a point still works.',
-              ),
-            ),
 
           Positioned(
             right: AppSpacing.lg,
@@ -288,11 +289,15 @@ class _MapPickerScreenState extends ConsumerState<MapPickerScreen> {
                               const SizedBox(
                                 height: 16,
                                 width: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                               const SizedBox(width: AppSpacing.md),
                               Text(
-                                _isMoving ? 'Move the map to adjust' : 'Looking up this address',
+                                _isMoving
+                                    ? 'Move the map to adjust'
+                                    : 'Looking up this address',
                                 style: theme.textTheme.bodySmall,
                               ),
                             ],
