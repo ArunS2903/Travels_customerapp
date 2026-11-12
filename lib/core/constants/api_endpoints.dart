@@ -21,8 +21,10 @@ class ApiEndpoints {
   static const String myPassword = '/customers/me/password';
   static const String myBookings = '/customers/me/bookings';
   static const String myAddresses = '/customers/me/addresses';
-  static String address(String addressId) => '/customers/me/addresses/$addressId';
-  static const String notificationPreferences = '/customers/me/notification-preferences';
+  static String address(String addressId) =>
+      '/customers/me/addresses/$addressId';
+  static const String notificationPreferences =
+      '/customers/me/notification-preferences';
   static const String devices = '/customers/me/devices';
 
   // --- Vehicles and fares ---------------------------------------------------
@@ -37,7 +39,8 @@ class ApiEndpoints {
   static String vehicle(String vehicleId) => '/vehicles/$vehicleId';
 
   /// Which days a vehicle is already held, for the date picker.
-  static String vehicleAvailability(String vehicleId) => '/vehicles/$vehicleId/availability';
+  static String vehicleAvailability(String vehicleId) =>
+      '/vehicles/$vehicleId/availability';
 
   // --- Bookings -------------------------------------------------------------
   static const String bookings = '/bookings';
@@ -46,7 +49,14 @@ class ApiEndpoints {
   static const String hireQuote = '/bookings/quote';
 
   static String booking(String bookingId) => '/bookings/$bookingId';
-  static String cancelBooking(String bookingId) => '/bookings/$bookingId/cancel';
+  static String bookingPaymentOrder(String bookingId) =>
+      '/bookings/$bookingId/payment/order';
+  static String verifyBookingPayment(String bookingId) =>
+      '/bookings/$bookingId/payment/verify';
+  static String confirmCashPayment(String bookingId) =>
+      '/bookings/$bookingId/payment/confirm-cash';
+  static String cancelBooking(String bookingId) =>
+      '/bookings/$bookingId/cancel';
   static String cancellationPolicy(String bookingId) =>
       '/bookings/$bookingId/cancellation-policy';
 

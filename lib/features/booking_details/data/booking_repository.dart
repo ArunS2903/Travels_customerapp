@@ -11,13 +11,38 @@ import '../models/booking.dart';
 /// Outcome of a create call, distinguishing a new booking from a deduplicated
 /// retry so the UI can avoid celebrating the same booking twice.
 class BookingCreationResult {
-  const BookingCreationResult({required this.booking, required this.wasDeduplicated});
+  const BookingCreationResult({
+    required this.booking,
+    required this.wasDeduplicated,
+  });
 
   final Booking booking;
 
   /// True when this submission matched an `idempotencyKey` we had already used,
   /// i.e. the booking already existed.
   final bool wasDeduplicated;
+}
+
+class GatewayPaymentOrder {
+  const GatewayPaymentOrder({
+    required this.orderId,
+    required this.keyId,
+    required this.amount,
+    required this.currency,
+  });
+
+  final String orderId;
+  final String keyId;
+  final int amount;
+  final String currency;
+
+  factory GatewayPaymentOrder.fromJson(Map<String, dynamic> json) =>
+      GatewayPaymentOrder(
+        orderId: json['orderId'] as String,
+        keyId: json['keyId'] as String,
+        amount: (json['amount'] as num).toInt(),
+        currency: json['currency'] as String,
+      );
 }
 
 class BookingRepository {
@@ -62,7 +87,8 @@ class BookingRepository {
         'destination': destination.toJson(),
         'paymentMethod': paymentMethod.apiValue,
         'idempotencyKey': idempotencyKey,
-        if (specialInstructions != null && specialInstructions.trim().isNotEmpty)
+        if (specialInstructions != null &&
+            specialInstructions.trim().isNotEmpty)
           'specialInstructions': specialInstructions.trim(),
       },
       // Safe to retry precisely because of the idempotency key above.
@@ -73,9 +99,13 @@ class BookingRepository {
     final data = Map<String, dynamic>.from(body['data'] as Map);
 
     return BookingCreationResult(
-      booking: Booking.fromJson(Map<String, dynamic>.from(data['booking'] as Map)),
+      booking: Booking.fromJson(
+        Map<String, dynamic>.from(data['booking'] as Map),
+      ),
       // 200 (rather than 201) also means "already existed", so trust either signal.
-      wasDeduplicated: (data['deduplicated'] as bool? ?? false) || response.statusCode == 200,
+      wasDeduplicated:
+          (data['deduplicated'] as bool? ?? false) ||
+          response.statusCode == 200,
     );
   }
 
@@ -97,9 +127,46 @@ class BookingRepository {
     return PaginatedResult.fromJson(data, BookingSummary.fromJson);
   }
 
-  Future<BookingDetail> fetchBooking(String bookingId, {CancelToken? cancelToken}) async {
-    final data = await _client.get(ApiEndpoints.booking(bookingId), cancelToken: cancelToken);
+  Future<BookingDetail> fetchBooking(
+    String bookingId, {
+    CancelToken? cancelToken,
+  }) async {
+    final data = await _client.get(
+      ApiEndpoints.booking(bookingId),
+      cancelToken: cancelToken,
+    );
     return BookingDetail.fromJson(data);
+  }
+
+  Future<GatewayPaymentOrder> createPaymentOrder(String bookingId) async {
+    final data = await _client.post(
+      ApiEndpoints.bookingPaymentOrder(bookingId),
+    );
+    return GatewayPaymentOrder.fromJson(
+      Map<String, dynamic>.from(data['payment'] as Map),
+    );
+  }
+
+  Future<Booking> verifyGatewayPayment({
+    required String bookingId,
+    required String orderId,
+    required String paymentId,
+    required String signature,
+  }) async {
+    final data = await _client.post(
+      ApiEndpoints.verifyBookingPayment(bookingId),
+      body: {
+        'orderId': orderId,
+        'paymentId': paymentId,
+        'signature': signature,
+      },
+    );
+    return Booking.fromJson(Map<String, dynamic>.from(data['booking'] as Map));
+  }
+
+  Future<Booking> confirmCashPayment(String bookingId) async {
+    final data = await _client.post(ApiEndpoints.confirmCashPayment(bookingId));
+    return Booking.fromJson(Map<String, dynamic>.from(data['booking'] as Map));
   }
 
   /// What cancelling right now would cost. Fetched when the sheet opens so the
@@ -120,7 +187,8 @@ class BookingRepository {
       ApiEndpoints.cancelBooking(bookingId),
       body: {
         'reason': reason,
-        if (remarks != null && remarks.trim().isNotEmpty) 'remarks': remarks.trim(),
+        if (remarks != null && remarks.trim().isNotEmpty)
+          'remarks': remarks.trim(),
       },
     );
     return Booking.fromJson(Map<String, dynamic>.from(data['booking'] as Map));

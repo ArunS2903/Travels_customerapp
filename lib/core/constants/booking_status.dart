@@ -33,14 +33,18 @@ enum BookingStatus {
 
   bool get isTerminal => this == completed || this == cancelled;
 
-  bool get isActive => this == driverAssigned || this == driverArrived || this == inProgress;
+  bool get isActive =>
+      this == driverAssigned || this == driverArrived || this == inProgress;
 
   bool get isUpcoming => this == pending || this == confirmed;
 
   /// Whether the cancel button should be offered at all. The backend decides
   /// authoritatively; this only keeps us from showing a button that will 409.
   bool get isCancellable =>
-      this == pending || this == confirmed || this == driverAssigned || this == driverArrived;
+      this == pending ||
+      this == confirmed ||
+      this == driverAssigned ||
+      this == driverArrived;
 
   /// What the customer is waiting for, in plain language.
   String get description {
@@ -238,9 +242,9 @@ enum PaymentMethod {
   String get description {
     switch (this) {
       case gpay:
-        return 'Opens GPay. Submit the receipt reference afterwards and we confirm it.';
+        return 'Pay securely with GPay. The payment is verified automatically.';
       case cash:
-        return 'Pay the operator when you collect the vehicle.';
+        return 'Pay the operator during your travel. Confirm payment after the trip is completed.';
       case upi:
       case card:
       case wallet:
@@ -248,8 +252,10 @@ enum PaymentMethod {
     }
   }
 
-  static PaymentMethod fromApi(String? value) => PaymentMethod.values.firstWhere(
-        (method) => method.apiValue.toLowerCase() == (value ?? '').toLowerCase(),
+  static PaymentMethod fromApi(String? value) =>
+      PaymentMethod.values.firstWhere(
+        (method) =>
+            method.apiValue.toLowerCase() == (value ?? '').toLowerCase(),
         orElse: () => PaymentMethod.cash,
       );
 }
@@ -258,10 +264,8 @@ enum PaymentMethod {
 enum PaymentStatus {
   pending('Pending'),
 
-  /// The customer has said they paid and given a reference, and nobody has
-  /// checked it against the bank yet. A UPI deep link cannot tell the app
-  /// anything trustworthy, so this is as far as the customer can move a
-  /// payment; only an admin makes it [paid].
+  /// A legacy direct-UPI claim awaiting manual verification. New GPay
+  /// transactions are verified by the backend and do not enter this state.
   awaitingVerification('Awaiting Verification'),
 
   paid('Paid'),
@@ -274,8 +278,10 @@ enum PaymentStatus {
 
   bool get isSettled => this == paid;
 
-  static PaymentStatus fromApi(String? value) => PaymentStatus.values.firstWhere(
-        (status) => status.apiValue.toLowerCase() == (value ?? '').toLowerCase(),
+  static PaymentStatus fromApi(String? value) =>
+      PaymentStatus.values.firstWhere(
+        (status) =>
+            status.apiValue.toLowerCase() == (value ?? '').toLowerCase(),
         orElse: () => PaymentStatus.pending,
       );
 
@@ -314,25 +320,29 @@ enum DriverAllocationStatus {
 
   static DriverAllocationStatus fromApi(String? value) {
     for (final status in DriverAllocationStatus.values) {
-      if (status.apiValue.toLowerCase() == (value ?? '').toLowerCase()) return status;
+      if (status.apiValue.toLowerCase() == (value ?? '').toLowerCase())
+        return status;
     }
     return DriverAllocationStatus.notAllocated;
   }
 
   /// What the customer sees as the field's value.
-  String get label => this == allocated ? 'Driver allocated' : 'Driver not allocated yet';
+  String get label =>
+      this == allocated ? 'Driver allocated' : 'Driver not allocated yet';
 
   /// What it means for them, in plain language.
   String get description => this == allocated
       ? 'Your driver has been assigned. Their name and mobile number are below, '
-          'and we have texted them to your registered number.'
+            'and we have texted them to your registered number.'
       : 'The operator has not assigned a driver yet. We will text you their name '
-          'and mobile number as soon as they do.';
+            'and mobile number as soon as they do.';
 
   Color get color => this == allocated ? AppColors.success : AppColors.warning;
 
-  Color get softColor => this == allocated ? AppColors.successSoft : AppColors.warningSoft;
+  Color get softColor =>
+      this == allocated ? AppColors.successSoft : AppColors.warningSoft;
 
-  IconData get icon =>
-      this == allocated ? Icons.how_to_reg_rounded : Icons.person_search_rounded;
+  IconData get icon => this == allocated
+      ? Icons.how_to_reg_rounded
+      : Icons.person_search_rounded;
 }

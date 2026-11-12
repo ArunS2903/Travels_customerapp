@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/booking_status.dart';
+import '../../../core/providers/app_providers.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -56,11 +58,23 @@ class BookingDetailsScreen extends ConsumerStatefulWidget {
 
 class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
   bool _showCreatedBanner = false;
+  bool _isProcessingPayment = false;
+  late final Razorpay _razorpay;
 
   @override
   void initState() {
     super.initState();
     _showCreatedBanner = widget.justCreated;
+    _razorpay = Razorpay()
+      ..on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess)
+      ..on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError)
+      ..on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -95,6 +109,129 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
       }
     } on Object {
       if (mounted) AppFeedback.showError(context, 'Could not start a call.');
+    }
+  }
+
+  Future<void> _startGpayPayment(Booking booking) async {
+    if (_isProcessingPayment) return;
+    setState(() => _isProcessingPayment = true);
+
+    try {
+      final order = await ref
+          .read(bookingRepositoryProvider)
+          .createPaymentOrder(booking.id);
+
+      if (!mounted) return;
+      _razorpay.open({
+        'key': order.keyId,
+        'amount': order.amount,
+        'currency': order.currency,
+        'order_id': order.orderId,
+        'name': booking.businessContact?.businessName ?? 'Travel booking',
+        'description': 'Booking ${booking.bookingCode}',
+        'method': {'upi': true},
+        'prefill': {
+          if ((booking.customerName).isNotEmpty) 'name': booking.customerName,
+          if ((booking.customerEmail ?? '').isNotEmpty)
+            'email': booking.customerEmail,
+          if ((booking.customerPhone ?? '').isNotEmpty)
+            'contact': booking.customerPhone,
+        },
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _isProcessingPayment = false);
+      AppFeedback.showError(context, error);
+    }
+  }
+
+  Future<void> _handlePaymentSuccess(PaymentSuccessResponse response) async {
+    final orderId = response.orderId;
+    final paymentId = response.paymentId;
+    final signature = response.signature;
+
+    if (orderId == null || paymentId == null || signature == null) {
+      if (mounted) {
+        setState(() => _isProcessingPayment = false);
+        AppFeedback.showError(
+          context,
+          'The payment provider returned incomplete verification details. Refresh the booking before retrying.',
+        );
+      }
+      return;
+    }
+
+    try {
+      await ref
+          .read(bookingRepositoryProvider)
+          .verifyGatewayPayment(
+            bookingId: widget.bookingId,
+            orderId: orderId,
+            paymentId: paymentId,
+            signature: signature,
+          );
+      if (!mounted) return;
+      ref.invalidate(bookingDetailProvider(widget.bookingId));
+      AppFeedback.showSuccess(context, 'Payment verified and marked paid.');
+    } on Object catch (error) {
+      if (!mounted) return;
+      AppFeedback.showError(context, error);
+      ref.invalidate(bookingDetailProvider(widget.bookingId));
+    } finally {
+      if (mounted) setState(() => _isProcessingPayment = false);
+    }
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    if (!mounted) return;
+    setState(() => _isProcessingPayment = false);
+    AppFeedback.showError(
+      context,
+      response.message ?? 'Payment was not completed. You can try again.',
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    if (!mounted) return;
+    AppFeedback.showInfo(
+      context,
+      '${response.walletName ?? 'External wallet'} selected. Complete the payment to update this booking.',
+    );
+  }
+
+  Future<void> _confirmCashPaid(Booking booking) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm cash payment'),
+        content: const Text(
+          'Have you paid the operator in cash for this completed travel?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not yet'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm Paid'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _isProcessingPayment) return;
+
+    setState(() => _isProcessingPayment = true);
+    try {
+      await ref.read(bookingRepositoryProvider).confirmCashPayment(booking.id);
+      if (!mounted) return;
+      ref.invalidate(bookingDetailProvider(widget.bookingId));
+      AppFeedback.showSuccess(context, 'Payment marked paid.');
+    } on Object catch (error) {
+      if (!mounted) return;
+      AppFeedback.showError(context, error);
+    } finally {
+      if (mounted) setState(() => _isProcessingPayment = false);
     }
   }
 
@@ -461,32 +598,25 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
   Widget? _buildBottomBar(BookingDetail detail) {
     final theme = Theme.of(context);
     final booking = detail.booking;
+    final canPayByGpay =
+        booking.paymentMethod == PaymentMethod.gpay &&
+        (booking.paymentStatus == PaymentStatus.pending ||
+            booking.paymentStatus == PaymentStatus.failed);
+    final canConfirmCash =
+        booking.paymentMethod == PaymentMethod.cash &&
+        booking.status == BookingStatus.completed &&
+        booking.paymentStatus != PaymentStatus.paid &&
+        booking.paymentStatus != PaymentStatus.refunded;
+    final canBookAgain = booking.status == BookingStatus.completed;
 
-    // Nothing actionable on a finished booking.
-    if (!detail.cancellation.canCancel) {
-      if (booking.status != BookingStatus.completed) return null;
-
-      return Container(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.pageGutter,
-          AppSpacing.md,
-          AppSpacing.pageGutter,
-          AppSpacing.md + MediaQuery.paddingOf(context).bottom,
-        ),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          border: Border(top: BorderSide(color: theme.colorScheme.outline)),
-        ),
-        child: SecondaryButton(
-          label: 'Book this trip again',
-          icon: Icons.replay_rounded,
-          onPressed: () => context.go(AppRoutes.home),
-        ),
-      );
+    if (!detail.cancellation.canCancel &&
+        !canPayByGpay &&
+        !canConfirmCash &&
+        !canBookAgain) {
+      return null;
     }
 
     final fee = detail.cancellation.estimatedFee;
-
     return Container(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.pageGutter,
@@ -501,23 +631,53 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (fee > 0)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Text(
-                'Cancelling now costs '
-                '${Formatters.money(fee, symbol: booking.currencySymbol)}.',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.warning,
+          if (canPayByGpay) ...[
+            PrimaryButton(
+              label: 'Pay with GPay',
+              icon: Icons.account_balance_wallet_rounded,
+              isLoading: _isProcessingPayment,
+              onPressed: _isProcessingPayment
+                  ? null
+                  : () => _startGpayPayment(booking),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          if (canConfirmCash) ...[
+            PrimaryButton(
+              label: 'Confirm Paid',
+              icon: Icons.check_circle_outline_rounded,
+              isLoading: _isProcessingPayment,
+              onPressed: _isProcessingPayment
+                  ? null
+                  : () => _confirmCashPaid(booking),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          if (detail.cancellation.canCancel) ...[
+            if (fee > 0)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Text(
+                  'Cancelling now costs '
+                  '${Formatters.money(fee, symbol: booking.currencySymbol)}.',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppColors.warning,
+                  ),
                 ),
               ),
+            SecondaryButton(
+              label: 'Cancel booking',
+              icon: Icons.close_rounded,
+              isDestructive: true,
+              onPressed: () => _openCancelSheet(booking),
             ),
-          SecondaryButton(
-            label: 'Cancel booking',
-            icon: Icons.close_rounded,
-            isDestructive: true,
-            onPressed: () => _openCancelSheet(booking),
-          ),
+          ],
+          if (canBookAgain)
+            SecondaryButton(
+              label: 'Book this trip again',
+              icon: Icons.replay_rounded,
+              onPressed: () => context.go(AppRoutes.home),
+            ),
         ],
       ),
     );
