@@ -14,11 +14,21 @@ class AppFeedback {
   static void showSuccess(BuildContext context, String message) =>
       _show(context, message, icon: Icons.check_circle_rounded, accent: AppColors.success);
 
-  static void showError(BuildContext context, Object error) {
-    final message = error is ApiException
-        ? error.message
-        : 'Something went wrong. Please try again.';
-    _show(context, message, icon: Icons.error_rounded, accent: AppColors.danger);
+  static void showError(BuildContext context, Object error) =>
+      _show(context, messageFor(error),
+          icon: Icons.error_rounded, accent: AppColors.danger);
+
+  /// The customer-facing message for a thrown object.
+  ///
+  /// Exposed as well as used internally, because an error that belongs beside
+  /// a form field rather than in a snackbar still has to be turned into a
+  /// sentence - and it has to be turned into the *same* sentence. A screen
+  /// that wrote its own would drift from this one the first time a backend
+  /// error code changed.
+  static String messageFor(Object error) {
+    if (error is ApiException) return error.message;
+    if (error is String) return error;
+    return 'Something went wrong. Please try again.';
   }
 
   static void showInfo(BuildContext context, String message) =>

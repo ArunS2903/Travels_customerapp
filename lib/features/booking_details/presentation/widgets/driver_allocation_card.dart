@@ -131,7 +131,7 @@ class DriverAllocationCard extends StatelessWidget {
                             const Icon(
                               Icons.star_rounded,
                               size: 14,
-                              color: AppColors.amberDark,
+                              color: AppColors.brand,
                             ),
                             const SizedBox(width: 3),
                             Text(

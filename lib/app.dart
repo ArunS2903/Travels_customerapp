@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/config/app_config.dart';
 import 'core/routing/app_router.dart';
 import 'core/routing/app_routes.dart';
 import 'core/theme/app_theme.dart';
 import 'features/authentication/providers/auth_controller.dart';
 import 'features/booking_details/providers/booking_detail_providers.dart';
+import 'features/location/presentation/location_permission_gate.dart';
 import 'features/notifications/providers/notification_providers.dart';
 import 'features/realtime/socket_service.dart';
 
@@ -93,7 +95,7 @@ class _CustomerAppState extends ConsumerState<CustomerApp> {
     });
 
     return MaterialApp.router(
-      title: 'PP Travels',
+      title: AppConfig.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
@@ -111,7 +113,12 @@ class _CustomerAppState extends ConsumerState<CustomerApp> {
 
         return MediaQuery(
           data: mediaQuery.copyWith(textScaler: scale),
-          child: child ?? const SizedBox.shrink(),
+          // Wraps the whole navigator rather than one screen, so the
+          // permission is asked for once per launch regardless of which route
+          // the app opened on - a push notification can land the customer
+          // straight on a booking, which needs a location just as much as the
+          // home screen does.
+          child: LocationPermissionGate(child: child ?? const SizedBox.shrink()),
         );
       },
     );

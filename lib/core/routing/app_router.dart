@@ -11,6 +11,7 @@ import '../../features/authentication/presentation/splash_screen.dart';
 import '../../features/authentication/providers/auth_controller.dart';
 import '../../features/booking_confirmation/presentation/booking_confirmation_screen.dart';
 import '../../features/booking_details/presentation/booking_details_screen.dart';
+import '../../features/booking_details/presentation/booking_vehicle_screen.dart';
 import '../../features/booking_history/presentation/my_bookings_screen.dart';
 import '../../features/fleet/presentation/available_vehicles_screen.dart';
 import '../../features/fleet/presentation/vehicle_details_screen.dart';
@@ -45,11 +46,21 @@ class _RouterRefresh extends ChangeNotifier {
   final Ref _ref;
 }
 
+/// The root navigator.
+///
+/// Exposed so code that lives *above* the navigator in the widget tree - the
+/// `MaterialApp.router` builder, where app-wide wrappers go - can still show a
+/// dialogue or a sheet. `showModalBottomSheet` needs a context with a
+/// Navigator in it, and a builder's own context is by definition outside the
+/// one the router creates. See LocationPermissionGate.
+final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefresh(ref);
   ref.onDispose(refresh.dispose);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash,
     refreshListenable: refresh,
     debugLogDiagnostics: false,
@@ -169,6 +180,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             justCreated: state.extra == 'created',
           );
         },
+      ),
+
+      // Declared after /bookings/:bookingId, which it extends rather than
+      // competes with: go_router matches whole paths, so the order is for the
+      // reader's benefit, not the matcher's.
+      GoRoute(
+        path: AppRoutes.bookingVehicle,
+        builder: (context, state) =>
+            BookingVehicleScreen(bookingId: state.pathParameters['bookingId'] ?? ''),
       ),
 
       GoRoute(path: AppRoutes.notifications, builder: (_, __) => const NotificationsScreen()),

@@ -169,7 +169,7 @@ class _PeriodBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.event_available_rounded, size: 19, color: AppColors.amberDark),
+          const Icon(Icons.event_available_rounded, size: 19, color: AppColors.brand),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(

@@ -54,7 +54,7 @@ class StatusTimeline extends StatelessWidget {
         final color = isFuture
             ? theme.colorScheme.outline
             : isCurrent
-                ? AppColors.amberDark
+                ? AppColors.brand
                 : AppColors.success;
 
         return Row(

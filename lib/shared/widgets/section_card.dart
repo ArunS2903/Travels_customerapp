@@ -11,6 +11,7 @@ class SectionCard extends StatelessWidget {
     this.title,
     this.icon,
     this.trailing,
+    this.onTap,
     this.padding = const EdgeInsets.all(AppSpacing.lg),
   });
 
@@ -18,35 +19,48 @@ class SectionCard extends StatelessWidget {
   final String? title;
   final IconData? icon;
   final Widget? trailing;
+
+  /// Makes the whole card a target. When set the card gains a ripple and an
+  /// accessibility `button` role; when null it stays a plain container, so a
+  /// screen reader does not announce every summary block as tappable.
+  final VoidCallback? onTap;
+
   final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      child: Padding(
-        padding: padding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (title != null) ...[
-              Row(
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
-                    const SizedBox(width: AppSpacing.sm),
-                  ],
-                  Expanded(child: Text(title!, style: theme.textTheme.titleSmall)),
-                  if (trailing != null) trailing!,
+    final body = Padding(
+      padding: padding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title != null) ...[
+            Row(
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: AppSpacing.sm),
                 ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-            ],
-            child,
+                Expanded(child: Text(title!, style: theme.textTheme.titleSmall)),
+                if (trailing != null) trailing!,
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
           ],
-        ),
+          child,
+        ],
       ),
+    );
+
+    if (onTap == null) return Card(child: body);
+
+    // `clipBehavior` matters here: without it the ripple paints over the
+    // card's rounded corners and the splash shows square edges.
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(onTap: onTap, child: body),
     );
   }
 }

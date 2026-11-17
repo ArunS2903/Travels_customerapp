@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/config/app_config.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/routing/app_routes.dart';
@@ -256,45 +255,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ],
             ),
-
-            // Honest about what this build cannot do, rather than leaving a
-            // tester to wonder why push notifications never arrive.
-            if (!AppConfig.isFullyConfigured) ...[
-              const SizedBox(height: AppSpacing.lg),
-              SectionCard(
-                title: 'Build configuration',
-                icon: Icons.construction_rounded,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'This build is missing optional configuration, so some features are off:',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    ...AppConfig.missingConfiguration.map(
-                      (line) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('-  ', style: theme.textTheme.labelSmall),
-                            Expanded(child: Text(line, style: theme.textTheme.labelSmall)),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (ref.read(pushServiceProvider).unavailableReason != null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        ref.read(pushServiceProvider).unavailableReason!,
-                        style: theme.textTheme.labelSmall,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
 
             const SizedBox(height: AppSpacing.xxl),
 

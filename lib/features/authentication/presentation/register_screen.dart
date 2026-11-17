@@ -113,6 +113,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final challenge = await ref.read(authRepositoryProvider).sendOtp(
           identifier: phone,
           purpose: OtpPurpose.register,
+          // There is no account yet, so this is the only place the code can be
+          // sent. It is the same address the account is about to be created
+          // with, which is why it is read from the form rather than re-typed
+          // on the next screen.
+          deliveryEmail: email,
         );
 
     if (!mounted) return;
@@ -190,9 +195,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
                 AppTextField(
                   controller: _phoneController,
-                  label: 'Mobile number',
+                  label: 'Mobile number (optional)',
                   hint: '9876543210',
-                  helperText: 'We will text a code to confirm this number.',
+                  helperText:
+                      'Optional. We email a code to confirm it is yours, and '
+                      'use it to text you about your bookings.',
                   prefixIcon: Icons.smartphone_rounded,
                   keyboardType: TextInputType.phone,
                   textInputAction: TextInputAction.next,
@@ -202,31 +209,31 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     LengthLimitingTextInputFormatter(16),
                   ],
                   serverError: _fieldErrors['phone'],
-                  onChanged: (_) {
-                    _clearFieldError('phone');
-                    // The email field's requirement depends on this one, so
-                    // repaint the labels.
-                    setState(() {});
-                  },
+                  onChanged: (_) => _clearFieldError('phone'),
                   validator: (value) {
                     final phone = (value ?? '').trim();
-                    final email = _emailController.text.trim();
-                    // One of the two is required; the backend enforces the same.
-                    if (phone.isEmpty) {
-                      return email.isEmpty
-                          ? 'Enter a mobile number or an email address.'
-                          : null;
-                    }
+                    // Optional, because an email address alone is a complete
+                    // account. Given one, it has to be a real number: it is
+                    // what the operator texts about the booking.
+                    if (phone.isEmpty) return null;
                     return Validators.phone(phone);
                   },
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
+                /// Required, not optional.
+                ///
+                /// One-time codes are emailed, including the one that verifies
+                /// the mobile number on this form. An account created with a
+                /// number and no address would have nowhere to receive a code
+                /// - which means it could never be signed into again, and the
+                /// customer would only find that out the next time they tried.
                 AppTextField(
                   controller: _emailController,
-                  label: _phoneController.text.trim().isEmpty
-                      ? 'Email address'
-                      : 'Email address (optional)',
+                  label: 'Email address',
+                  helperText:
+                      'We send your one-time codes here, including the one that '
+                      'confirms your mobile number.',
                   hint: 'you@example.com',
                   prefixIcon: Icons.alternate_email_rounded,
                   keyboardType: TextInputType.emailAddress,
@@ -239,9 +246,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   },
                   validator: (value) {
                     final email = (value ?? '').trim();
-                    final hasPhone = _phoneController.text.trim().isNotEmpty;
                     if (email.isEmpty) {
-                      return hasPhone ? null : 'Enter an email address or a mobile number.';
+                      return 'Enter an email address - your sign-in codes go there.';
                     }
                     return Validators.email(email);
                   },

@@ -45,6 +45,78 @@ class GatewayPaymentOrder {
       );
 }
 
+/// The deep links and instructions for a direct-UPI payment.
+///
+/// `intentUrl` is the generic `upi://pay`, which Android offers to every
+/// installed UPI app. That is the one to launch: the operator's UPI ID accepts
+/// money from any of them, and insisting on one brand turns away customers who
+/// use another. The per-app URLs exist only so a client can offer named
+/// shortcut buttons.
+class UpiPaymentIntent {
+  const UpiPaymentIntent({
+    required this.intentUrl,
+    required this.payeeVpa,
+    required this.payeeName,
+    required this.amount,
+    required this.currencySymbol,
+    required this.reference,
+    this.gpayUrl,
+    this.phonePeUrl,
+    this.paytmUrl,
+    this.requiresReference = true,
+    this.referenceLabel = 'UPI transaction ID (UTR)',
+    this.referenceHint = '',
+    this.instructions = '',
+  });
+
+  final String intentUrl;
+  final String? gpayUrl;
+  final String? phonePeUrl;
+  final String? paytmUrl;
+
+  final String payeeVpa;
+  final String payeeName;
+  final double amount;
+  final String currencySymbol;
+
+  /// Our reference, carried in the UPI `tr` field.
+  final String reference;
+
+  /// Whether the customer has to bring a UTR back. True for direct UPI, where
+  /// nothing can confirm settlement on its own.
+  final bool requiresReference;
+  final String referenceLabel;
+  final String referenceHint;
+
+  /// What the server says happens next, so the app does not keep its own copy
+  /// of a policy the server owns.
+  final String instructions;
+
+  factory UpiPaymentIntent.fromJson(Map<String, dynamic> json) {
+    final payment = Map<String, dynamic>.from(json['payment'] as Map);
+    final verification = json['verification'] is Map
+        ? Map<String, dynamic>.from(json['verification'] as Map)
+        : const <String, dynamic>{};
+
+    return UpiPaymentIntent(
+      intentUrl: payment['intentUrl'] as String,
+      gpayUrl: payment['gpayUrl'] as String?,
+      phonePeUrl: payment['phonePeUrl'] as String?,
+      paytmUrl: payment['paytmUrl'] as String?,
+      payeeVpa: (payment['payeeVpa'] ?? '') as String,
+      payeeName: (payment['payeeName'] ?? '') as String,
+      amount: (payment['amount'] as num?)?.toDouble() ?? 0,
+      currencySymbol: (payment['currencySymbol'] ?? '₹') as String,
+      reference: (payment['reference'] ?? '') as String,
+      requiresReference: verification['required'] != false,
+      referenceLabel:
+          (payment['referenceLabel'] ?? 'UPI transaction ID (UTR)') as String,
+      referenceHint: (payment['referenceHint'] ?? '') as String,
+      instructions: (verification['instructions'] ?? '') as String,
+    );
+  }
+}
+
 class BookingRepository {
   const BookingRepository(this._client);
 
@@ -166,6 +238,42 @@ class BookingRepository {
 
   Future<Booking> confirmCashPayment(String bookingId) async {
     final data = await _client.post(ApiEndpoints.confirmCashPayment(bookingId));
+    return Booking.fromJson(Map<String, dynamic>.from(data['booking'] as Map));
+  }
+
+  /// The UPI deep links for this booking, rebuilt server-side on every call.
+  ///
+  /// Fetched rather than constructed here on purpose: the amount, the payee
+  /// and the reference are the server's to decide, and a client that built its
+  /// own intent could build one for the wrong amount.
+  Future<UpiPaymentIntent> fetchUpiIntent(String bookingId) async {
+    final data = await _client.post(ApiEndpoints.bookingPaymentIntent(bookingId));
+    return UpiPaymentIntent.fromJson(data);
+  }
+
+  /// Submits the UTR from the customer's UPI receipt. Moves the booking to
+  /// Awaiting Verification; it does not mark it paid.
+  Future<Booking> submitPaymentReference({
+    required String bookingId,
+    required String transactionId,
+  }) async {
+    final data = await _client.post(
+      ApiEndpoints.bookingPaymentReference(bookingId),
+      body: {'transactionId': transactionId},
+    );
+    return Booking.fromJson(Map<String, dynamic>.from(data['booking'] as Map));
+  }
+
+  /// Records a Completed or Confirm Paid acknowledgement. The server refuses
+  /// both unless the payment has actually been verified.
+  Future<Booking> acknowledgePayment({
+    required String bookingId,
+    required String action,
+  }) async {
+    final data = await _client.post(
+      ApiEndpoints.acknowledgePayment(bookingId),
+      body: {'action': action},
+    );
     return Booking.fromJson(Map<String, dynamic>.from(data['booking'] as Map));
   }
 

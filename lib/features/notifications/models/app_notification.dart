@@ -96,9 +96,9 @@ class AppNotification {
       case 'booking_status':
         return AppColors.info;
       case 'payment':
-        return AppColors.amberDark;
+        return AppColors.brand;
       case 'promotion':
-        return AppColors.amberDark;
+        return AppColors.brand;
       case 'booking_created':
         return AppColors.success;
       case 'account':

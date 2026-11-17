@@ -7,6 +7,87 @@ import '../../vehicle_selection/models/vehicle_estimate.dart';
 /// Snapshotted server-side at booking time, so a trip from last year still
 /// shows the number the customer was given then, even after the admin changes
 /// it. Never hardcoded in the app.
+/// The payment on a booking, as the backend reports it.
+///
+/// The field this exists for is [isTruePayment]. It is deliberately not the
+/// same thing as `paymentStatus == Paid`:
+///
+///   * `Paid` is a *state*. The operator can reach it by taking cash, and a
+///     customer who submitted a transaction reference reaches "Awaiting
+///     Verification" on their way to it.
+///   * [isTruePayment] is a *proof* - the payment provider confirmed a capture
+///     for this exact booking and amount, or an administrator checked the bank
+///     credit against the customer's UTR, or cash changed hands.
+///
+/// The Completed and Confirm Paid actions are gated on the proof, never on the
+/// state, which is what stops an unverified claim unlocking them.
+class BookingPayment {
+  const BookingPayment({
+    this.amount,
+    this.currencySymbol = '₹',
+    this.transactionId,
+    this.reference,
+    this.isPaid = false,
+    this.isTruePayment = false,
+    this.awaitingVerification = false,
+    this.verifiedBy,
+    this.verifiedAt,
+    this.rejectionReason,
+    this.customerConfirmedPaidAt,
+    this.customerCompletedAt,
+  });
+
+  final double? amount;
+  final String currencySymbol;
+
+  /// The UTR the customer submitted, once they have submitted one.
+  final String? transactionId;
+
+  /// Our own reference, which goes in the UPI `tr` field so a line on a bank
+  /// statement can be traced back to this booking.
+  final String? reference;
+
+  final bool isPaid;
+
+  /// See the class note. The gate on the Completed / Confirm Paid actions.
+  final bool isTruePayment;
+
+  /// A reference has been submitted and nobody has checked it yet.
+  final bool awaitingVerification;
+
+  /// `gateway`, `admin` or `cash` - what proved the payment.
+  final String? verifiedBy;
+  final DateTime? verifiedAt;
+
+  /// Why a submitted reference was turned down, when one was.
+  final String? rejectionReason;
+
+  final DateTime? customerConfirmedPaidAt;
+  final DateTime? customerCompletedAt;
+
+  bool get hasConfirmedPaid => customerConfirmedPaidAt != null;
+  bool get hasConfirmedCompleted => customerCompletedAt != null;
+  bool get wasRejected => (rejectionReason ?? '').isNotEmpty;
+
+  static DateTime? _date(Object? value) =>
+      value is String ? DateTime.tryParse(value) : null;
+
+  factory BookingPayment.fromJson(Map<String, dynamic> json) => BookingPayment(
+        amount: (json['amount'] as num?)?.toDouble(),
+        currencySymbol: (json['currencySymbol'] ?? '₹') as String,
+        transactionId: json['transactionId'] as String?,
+        reference: json['reference'] as String?,
+        isPaid: json['isPaid'] == true,
+        isTruePayment: json['isTruePayment'] == true,
+        awaitingVerification: json['awaitingVerification'] == true,
+        verifiedBy: json['verifiedBy'] as String?,
+        verifiedAt: _date(json['verifiedAt']),
+        rejectionReason: json['rejectionReason'] as String?,
+        customerConfirmedPaidAt: _date(json['customerConfirmedPaidAt']),
+        customerCompletedAt: _date(json['customerCompletedAt']),
+      );
+}
+
 class BookingBusinessContact {
   const BookingBusinessContact({
     this.businessName,
@@ -320,6 +401,7 @@ class Booking {
     required this.status,
     required this.paymentMethod,
     required this.paymentStatus,
+    this.payment,
     required this.createdAt,
     this.customerId,
     this.customerPhone,
@@ -380,6 +462,10 @@ class Booking {
   final BookingStatus status;
   final PaymentMethod paymentMethod;
   final PaymentStatus paymentStatus;
+
+  /// The payment trail, including whether the money has actually been
+  /// verified. Null on a booking written before the field existed.
+  final BookingPayment? payment;
 
   final DateTime? scheduledAt;
   final String? specialInstructions;
@@ -456,6 +542,10 @@ class Booking {
       status: BookingStatus.fromApi(json['bookingStatus'] as String?),
       paymentMethod: PaymentMethod.fromApi(json['paymentMethod'] as String?),
       paymentStatus: PaymentStatus.fromApi(json['paymentStatus'] as String?),
+      payment: json['payment'] is Map
+          ? BookingPayment.fromJson(
+              Map<String, dynamic>.from(json['payment'] as Map))
+          : null,
       scheduledAt: json['scheduledAt'] is String
           ? DateTime.tryParse(json['scheduledAt'] as String)
           : null,

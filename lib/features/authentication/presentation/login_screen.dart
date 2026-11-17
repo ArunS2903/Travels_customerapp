@@ -19,8 +19,13 @@ import 'otp_screen.dart';
 /// Sign-in, covering the three options the brief calls for:
 ///
 ///   A. mobile number + password   -> the Password tab
-///   B. mobile number + OTP        -> the One-time code tab
+///   B. mobile number + OTP        -> the "Email a code" tab
 ///   C. email + password           -> the Password tab
+///
+/// Option B is mobile-number-based authentication whose code arrives by
+/// email: the customer proves the number by proving the inbox registered
+/// against it. The server decides that - see OTP_PHONE_DELIVERY - so this
+/// screen reads the challenge's `deliveryChannel` rather than assuming.
 ///
 /// A and C share one field because the server accepts either; which one the
 /// customer typed is decided by looking for an `@`. That is one less decision
@@ -213,7 +218,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         ),
                         tabs: const [
                           Tab(text: 'Password'),
-                          Tab(text: 'One-time code'),
+                          Tab(text: 'Email a code'),
                         ],
                       ),
                     ),
@@ -353,13 +358,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'We will text you a code to sign in. No password needed.',
+            'Enter your mobile number and we will email a one-time code to the '
+            'address registered against it. No password needed.',
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: AppSpacing.xl),
           PrimaryButton(
-            label: 'Send code',
-            icon: Icons.sms_outlined,
+            label: 'Email me a code',
+            icon: Icons.mark_email_unread_outlined,
             isLoading: _isRequestingOtp,
             onPressed: _requestLoginCode,
           ),

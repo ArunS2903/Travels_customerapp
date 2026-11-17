@@ -51,7 +51,7 @@ class VehicleCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
         side: BorderSide(
-          color: isSelected ? AppColors.amberDark : theme.colorScheme.outline,
+          color: isSelected ? AppColors.brand : theme.colorScheme.outline,
           width: isSelected ? 1.6 : 1,
         ),
       ),

@@ -269,7 +269,7 @@ class _MapChip extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 1.8),
             )
           else
-            Icon(icon, size: 15, color: AppColors.amberDark),
+            Icon(icon, size: 15, color: AppColors.brand),
           const SizedBox(width: 6),
           Text(
             label,

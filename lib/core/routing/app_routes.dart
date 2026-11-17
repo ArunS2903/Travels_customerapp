@@ -30,6 +30,15 @@ class AppRoutes {
   static const String bookingDetails = '/bookings/:bookingId';
   static String bookingDetailsFor(String bookingId) => '/bookings/$bookingId';
 
+  /// The vehicle on one booking, in full, as its own screen.
+  ///
+  /// Hung off the booking rather than off `/vehicles/:id` on purpose: this
+  /// shows the car *as it was hired* from the booking's own snapshot, which is
+  /// a different thing from the live catalogue entry. See
+  /// booking_details/presentation/booking_vehicle_screen.dart.
+  static const String bookingVehicle = '/bookings/:bookingId/vehicle';
+  static String bookingVehicleFor(String bookingId) => '/bookings/$bookingId/vehicle';
+
   static const String notifications = '/notifications';
 
   static const String profile = '/profile';

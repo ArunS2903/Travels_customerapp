@@ -35,7 +35,7 @@ class SplashScreen extends ConsumerWidget {
               AppLogo(size: 92, showWordmark: true, wordmark: businessName),
               const SizedBox(height: AppSpacing.sm),
               Text(
-                'Your ride, a few taps away',
+                'Travel and cab booking, a few taps away',
                 style: theme.textTheme.bodySmall,
                 textAlign: TextAlign.center,
               ),

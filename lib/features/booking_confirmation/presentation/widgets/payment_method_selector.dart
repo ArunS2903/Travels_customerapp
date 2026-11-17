@@ -7,17 +7,18 @@ import '../../../../core/theme/app_spacing.dart';
 /// Payment method chooser.
 ///
 /// The list comes from the quote response, which is the operator's own answer
-/// about what they can take right now - so a GPay option never appears when
-/// GPay is not configured on the server, and the customer is never offered
-/// something that would be refused on submission.
+/// about what they can take right now - so Online Payment never appears when
+/// neither a UPI ID nor a gateway is configured on the server, and the
+/// customer is never offered something that would be refused on submission.
 ///
 /// Cash is the fallback when the server sent nothing usable. It is the one
 /// method that needs no integration and therefore always works.
 ///
-/// Nothing here captures card details or takes a payment. GPay is a UPI deep
-/// link to the operator's own account, and the customer submits the receipt
-/// reference afterwards for an admin to confirm - which is why the GPay option
-/// says so rather than implying the app knows when money moved.
+/// Nothing here captures card details or takes a payment. Online Payment is a
+/// UPI deep link into the operator's own account; the customer submits the
+/// receipt reference afterwards and an administrator confirms it - which is
+/// why the option says the booking is marked paid "once the payment is
+/// confirmed" rather than implying the app knows when money moved.
 class PaymentMethodSelector extends StatelessWidget {
   const PaymentMethodSelector({
     super.key,
@@ -88,13 +89,13 @@ class _MethodTile extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.amber.withValues(
+              ? AppColors.brand.withValues(
                   alpha: theme.brightness == Brightness.dark ? 0.14 : 0.1,
                 )
               : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
-            color: isSelected ? AppColors.amberDark : theme.colorScheme.outline,
+            color: isSelected ? AppColors.brand : theme.colorScheme.outline,
             width: isSelected ? 1.6 : 1,
           ),
         ),
@@ -103,7 +104,7 @@ class _MethodTile extends StatelessWidget {
             Icon(
               method.icon,
               size: 20,
-              color: isSelected ? AppColors.amberDark : theme.colorScheme.onSurfaceVariant,
+              color: isSelected ? AppColors.brand : theme.colorScheme.onSurfaceVariant,
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -119,7 +120,7 @@ class _MethodTile extends StatelessWidget {
             Icon(
               isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
               size: 20,
-              color: isSelected ? AppColors.amberDark : theme.colorScheme.outline,
+              color: isSelected ? AppColors.brand : theme.colorScheme.outline,
             ),
           ],
         ),

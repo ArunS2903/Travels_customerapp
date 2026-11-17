@@ -258,6 +258,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       final challenge = await ref.read(authRepositoryProvider).sendOtp(
             identifier: widget.args.identifier,
             purpose: widget.args.purpose,
+            // A registration resend has to carry the address again: there is
+            // still no account, so the server has nowhere else to look.
+            deliveryEmail: widget.args.registrationDraft?.email,
           );
 
       _controller.clear();
@@ -311,7 +314,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  args.purpose == OtpPurpose.verifyEmail
+                  // The icon follows where the code actually went, not what
+                  // the customer typed. A message bubble beside "check your
+                  // email" is a small lie that costs a support call.
+                  args.challenge.wasEmailed ||
+                          args.purpose == OtpPurpose.verifyEmail
                       ? Icons.mark_email_unread_outlined
                       : Icons.sms_outlined,
                   size: 28,
@@ -327,15 +334,29 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                   children: [
-                    const TextSpan(text: 'We sent it to '),
+                    const TextSpan(text: 'We emailed it to '),
                     TextSpan(
-                      text: args.challenge.maskedDestination,
+                      text: args.challenge.deliveredTo ??
+                          args.challenge.maskedDestination,
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     const TextSpan(text: '.'),
                   ],
                 ),
               ),
+
+              if (args.challenge.wasEmailed) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  // Said plainly because the customer typed a phone number and
+                  // is, by default, watching their messages.
+                  'This is the email address registered against '
+                  '${args.challenge.maskedDestination}. Check your spam folder '
+                  'if it has not arrived.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+
               const SizedBox(height: AppSpacing.xxl),
 
               // Development affordance: the backend only returns `devOtp` when
@@ -346,8 +367,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   icon: Icons.construction_rounded,
                   accent: AppColors.warning,
                   message:
-                      'Development mode: SMS delivery is mocked on the server, so the code is '
-                      'shown here instead of being texted. Code: ${args.challenge.devOtp}',
+                      'Development mode: delivery is mocked on the server, so the code is '
+                      'shown here instead of being sent. Code: ${args.challenge.devOtp}',
                   actionLabel: 'Fill it in',
                   onAction: () {
                     _controller.text = args.challenge.devOtp!;
@@ -523,7 +544,7 @@ class _OtpInputState extends State<_OtpInput> {
                         color: widget.hasError
                             ? theme.colorScheme.error
                             : isNext
-                                ? AppColors.amberDark
+                                ? AppColors.brand
                                 : theme.colorScheme.outline,
                         width: isNext || widget.hasError ? 1.8 : 1,
                       ),

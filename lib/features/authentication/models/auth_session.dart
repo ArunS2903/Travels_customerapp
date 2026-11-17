@@ -36,24 +36,44 @@ class OtpChallenge {
     required this.maskedDestination,
     required this.expiresInSeconds,
     required this.resendInSeconds,
+    this.deliveryChannel = 'sms',
+    this.deliveredTo,
     this.devOtp,
   });
 
-  /// `+91••••••10`, so the customer can confirm we are texting the right number.
+  /// The identifier the customer typed, masked: `+91••••••10`. Confirms we are
+  /// working on the right account.
   final String maskedDestination;
+
+  /// Where the code was actually sent: `email` or `sms`.
+  ///
+  /// These are two different facts and the screen needs both. A customer signs
+  /// in with their *mobile number*, but the deployment emails the code to the
+  /// address on that account - so [maskedDestination] is a phone number while
+  /// [deliveredTo] is an inbox. Collapsing them would mean telling someone to
+  /// wait for a text that is never coming, which is the single most expensive
+  /// way to lose a sign-in.
+  final String deliveryChannel;
+
+  /// The masked address or number the code went to: `ar••••••@gmail.com`.
+  final String? deliveredTo;
 
   final int expiresInSeconds;
   final int resendInSeconds;
 
-  /// Only ever populated when the backend's SMS provider is mocked and it is
-  /// not running in production. The OTP screen shows it in a clearly-labelled
-  /// development banner so the flow is testable without an SMS gateway.
+  bool get wasEmailed => deliveryChannel == 'email';
+
+  /// Only ever populated when the backend's provider is mocked and it is not
+  /// running in production. The OTP screen shows it in a clearly-labelled
+  /// development banner so the flow is testable without a live gateway.
   final String? devOtp;
 
   bool get isDevelopmentCode => devOtp != null && devOtp!.isNotEmpty;
 
   factory OtpChallenge.fromJson(Map<String, dynamic> json) => OtpChallenge(
         maskedDestination: (json['maskedDestination'] ?? '') as String,
+        deliveryChannel: (json['deliveryChannel'] ?? 'sms') as String,
+        deliveredTo: json['deliveredTo'] as String?,
         expiresInSeconds: (json['expiresInSeconds'] as num?)?.toInt() ?? 300,
         resendInSeconds: (json['resendInSeconds'] as num?)?.toInt() ?? 30,
         devOtp: json['devOtp'] as String?,

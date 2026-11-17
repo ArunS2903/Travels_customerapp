@@ -234,7 +234,7 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
                         height: 40,
                         width: 40,
                         decoration: BoxDecoration(
-                          color: AppColors.amber.withValues(alpha: 0.16),
+                          color: AppColors.brand.withValues(alpha: 0.16),
                           borderRadius: BorderRadius.circular(AppRadius.sm),
                         ),
                         child: Icon(
@@ -244,7 +244,7 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
                                   ? Icons.work_rounded
                                   : Icons.bookmark_rounded,
                           size: 20,
-                          color: AppColors.amberDark,
+                          color: AppColors.brand,
                         ),
                       ),
                       const SizedBox(width: AppSpacing.lg),

@@ -113,13 +113,13 @@ class _CategoryCard extends StatelessWidget {
                 height: 34,
                 width: 34,
                 decoration: BoxDecoration(
-                  color: AppColors.amber.withValues(alpha: 0.18),
+                  color: AppColors.brand.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Icon(
                   vehicleIconFor(vehicle),
                   size: 19,
-                  color: AppColors.amberDark,
+                  color: AppColors.brand,
                 ),
               ),
               const Spacer(),

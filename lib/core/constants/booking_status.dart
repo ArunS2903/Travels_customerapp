@@ -78,7 +78,7 @@ enum BookingStatus {
       case driverArrived:
         return AppColors.info;
       case inProgress:
-        return AppColors.amberDark;
+        return AppColors.brand;
       case completed:
         return AppColors.success;
       case cancelled:
@@ -97,7 +97,7 @@ enum BookingStatus {
       case driverArrived:
         return AppColors.infoSoft;
       case inProgress:
-        return AppColors.amberSoft;
+        return AppColors.brandSoft;
       case completed:
         return AppColors.successSoft;
       case cancelled:
@@ -217,19 +217,26 @@ enum PaymentMethod {
   final String apiValue;
   final IconData icon;
 
-  /// What a customer may pick for a new hire: pay now by GPay, or pay on
-  /// arrival. The server refuses anything else.
+  /// What a customer may pick for a new hire: pay online now, or pay on
+  /// completion. The server refuses anything else.
   static const List<PaymentMethod> offeredForHire = [gpay, cash];
 
   bool get isOfferedForHire => offeredForHire.contains(this);
 
-  /// The label on the chooser. `GPay` alone does not say when the money moves.
+  /// The label on the chooser.
+  ///
+  /// `gpay` is stored as "GPay" and shown as "Online Payment". The stored
+  /// value is on every historical booking and renaming it would mean a
+  /// migration, so the database keeps its vocabulary and the customer gets
+  /// ours. The server sends the same labels in `GET /public/app-config`
+  /// (`paymentMethodLabels`), which is what a screen should prefer when it has
+  /// them - these are the fallback for before that call returns.
   String get label {
     switch (this) {
       case gpay:
-        return 'Pay now by GPay';
+        return 'Online Payment';
       case cash:
-        return 'Cash on travel';
+        return 'Cash on Pay';
       case upi:
         return 'UPI';
       case card:
@@ -242,9 +249,11 @@ enum PaymentMethod {
   String get description {
     switch (this) {
       case gpay:
-        return 'Pay securely with GPay. The payment is verified automatically.';
+        return 'Pay the full amount now from any UPI app. '
+            'Your booking is marked paid once the payment is confirmed.';
       case cash:
-        return 'Pay the operator during your travel. Confirm payment after the trip is completed.';
+        return 'Pay the operator when your travel is complete, '
+            'then confirm it here.';
       case upi:
       case card:
       case wallet:
@@ -320,8 +329,9 @@ enum DriverAllocationStatus {
 
   static DriverAllocationStatus fromApi(String? value) {
     for (final status in DriverAllocationStatus.values) {
-      if (status.apiValue.toLowerCase() == (value ?? '').toLowerCase())
+      if (status.apiValue.toLowerCase() == (value ?? '').toLowerCase()) {
         return status;
+      }
     }
     return DriverAllocationStatus.notAllocated;
   }

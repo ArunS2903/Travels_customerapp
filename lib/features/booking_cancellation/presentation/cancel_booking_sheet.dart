@@ -295,13 +295,13 @@ class _ReasonTile extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppColors.amber.withValues(
+                ? AppColors.brand.withValues(
                     alpha: theme.brightness == Brightness.dark ? 0.14 : 0.1,
                   )
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadius.md),
             border: Border.all(
-              color: isSelected ? AppColors.amberDark : theme.colorScheme.outline,
+              color: isSelected ? AppColors.brand : theme.colorScheme.outline,
               width: isSelected ? 1.6 : 1,
             ),
           ),
@@ -312,7 +312,7 @@ class _ReasonTile extends StatelessWidget {
                     ? Icons.radio_button_checked_rounded
                     : Icons.radio_button_off_rounded,
                 size: 20,
-                color: isSelected ? AppColors.amberDark : theme.colorScheme.outline,
+                color: isSelected ? AppColors.brand : theme.colorScheme.outline,
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(child: Text(reason, style: theme.textTheme.bodyMedium)),

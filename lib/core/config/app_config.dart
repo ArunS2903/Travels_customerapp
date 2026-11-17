@@ -18,6 +18,22 @@
 class AppConfig {
   const AppConfig._();
 
+  /// The product name, in one place.
+  ///
+  /// The server also reports a name through `GET /public/app-config`, and the
+  /// business contact carries the operator's own trading name. Where either is
+  /// available the app prefers it - they can be changed without a release -
+  /// and this constant is what renders before they have loaded, which is the
+  /// splash screen and the first frame of the sign-in screen.
+  static const String appName = 'PP Travels & Cab';
+
+  /// The short form, for places where the full name will not fit: the app bar
+  /// on a narrow handset, a notification title, the task switcher.
+  static const String appShortName = 'PP Travels';
+
+  /// How the business signs its messages to customers.
+  static const String serviceName = 'PP Travels Service';
+
   /// Base URL of the Node.js API, including the `/api/v1` prefix.
   ///
   /// `10.0.2.2` is the Android emulator's alias for the host machine's

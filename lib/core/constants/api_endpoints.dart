@@ -55,6 +55,20 @@ class ApiEndpoints {
       '/bookings/$bookingId/payment/verify';
   static String confirmCashPayment(String bookingId) =>
       '/bookings/$bookingId/payment/confirm-cash';
+
+  /// The UPI deep links for a direct-UPI booking, rebuilt on demand so a
+  /// customer who closed the app mid-payment can pick it up again.
+  static String bookingPaymentIntent(String bookingId) =>
+      '/bookings/$bookingId/payment/intent';
+
+  /// The UTR the customer copies off their UPI receipt.
+  static String bookingPaymentReference(String bookingId) =>
+      '/bookings/$bookingId/payment/reference';
+
+  /// The Completed / Confirm Paid acknowledgements, offered only once the
+  /// payment has actually been verified.
+  static String acknowledgePayment(String bookingId) =>
+      '/bookings/$bookingId/payment/acknowledge';
   static String cancelBooking(String bookingId) =>
       '/bookings/$bookingId/cancel';
   static String cancellationPolicy(String bookingId) =>

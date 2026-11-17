@@ -6,8 +6,23 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!--
+		Schemes this app probes with canLaunchUrl. iOS returns false for any
+		scheme not listed here, whatever is installed, so an omission shows up
+		as a payment or navigation button that silently does nothing.
+	-->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>upi</string>
+		<string>tez</string>
+		<string>phonepe</string>
+		<string>paytmmp</string>
+		<string>comgooglemaps</string>
+		<string>tel</string>
+		<string>mailto</string>
+	</array>
 	<key>CFBundleDisplayName</key>
-	<string>Customer App</string>
+	<string>PP Travels &amp; Cab</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

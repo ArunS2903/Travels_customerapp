@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -39,6 +40,34 @@ class SupportScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final contactState = ref.watch(businessContactProvider);
     final isSignedIn = ref.watch(authControllerProvider).isAuthenticated;
+
+    /// The contact answer names the real number rather than saying "see the
+    /// card above", because this question is the one a customer opens when the
+    /// card has not loaded - they are on a train with one bar of signal. The
+    /// number comes from the operator's own record, so there is no hardcoded
+    /// number here to go stale; when it has not loaded, the answer says where
+    /// to find it instead of inventing one.
+    final contact = contactState.maybeWhen(
+      data: (value) => value,
+      orElse: () => null,
+    );
+
+    final contactAnswer = contact == null
+        ? 'Our phone number and email address are at the top of this screen, '
+              'under "Contact the operator". You can also tap Contact on any '
+              'booking to call us about that specific trip.\n\n'
+              'We are still loading those details - pull down to refresh.'
+        : [
+            if (contact.hasPhone)
+              'Call us on ${contact.callNumber}. ${contact.supportHours ?? 'We answer during our published support hours.'}',
+            if (contact.hasWhatsapp) 'Message us on WhatsApp at ${contact.whatsappNumber}.',
+            if (contact.hasEmail) 'Email us at ${contact.emailAddress}.',
+            'You can reach all of these from the card at the top of this screen, '
+                'or by tapping Contact on any booking - that way we can see which '
+                'trip you are calling about.',
+            'Quote your booking reference when you get through. It is the '
+                'fastest way for us to find your trip.',
+          ].join('\n\n');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Support')),
@@ -87,13 +116,28 @@ class SupportScreen extends ConsumerWidget {
               title: 'Common questions',
               icon: Icons.help_outline_rounded,
               child: Column(
-                children: const [
+                children: [
                   _Faq(
-                    question: 'Why is my fare an estimate?',
+                    question: 'How do I book a trip?',
                     answer:
-                        'The fare is worked out from the planned route. If the driver has to '
-                        'take a different road, wait for you, or pay a toll, the final fare can '
-                        'differ. The final figure appears on the booking once the trip is done.',
+                        'Five steps, in this order.\n\n'
+                        '1. On the home screen, choose your booking date and your return '
+                        'date. The dates come first because which vehicles exist at all '
+                        'depends on them - the fleet is held day by day.\n\n'
+                        '2. Set your pickup point. We fill it in from your location if you '
+                        'have allowed it; tap it to search for an address or drop a pin '
+                        'instead.\n\n'
+                        '3. Tap "Where to?" and choose your drop location the same way.\n\n'
+                        '4. Tap "Find available vehicles". You see only the vehicles that '
+                        'are genuinely free for your dates. Tap one to see its photographs, '
+                        'specification, daily rate and total.\n\n'
+                        '5. Check the fare breakdown, choose Online Payment or Cash on Pay, '
+                        'and confirm. Your booking reference appears straight away - keep '
+                        'it for any questions.',
+                  ),
+                  _Faq(
+                    question: 'How do I contact ${AppConfig.serviceName}?',
+                    answer: contactAnswer,
                   ),
                   _Faq(
                     question: 'Can I cancel after booking?',
@@ -111,9 +155,14 @@ class SupportScreen extends ConsumerWidget {
                   _Faq(
                     question: 'I did not receive my one-time code.',
                     answer:
-                        'Check the number is right, wait for the resend timer, and request a '
-                        'new code. If codes never arrive, contact the operator using the '
-                        'details above.',
+                        'Sign-in codes are emailed, not texted - they go to the email '
+                        'address registered against your mobile number, so check that '
+                        'inbox rather than your messages. Look in spam or promotions '
+                        'too; the first one from us sometimes lands there.\n\n'
+                        'If it still has not arrived, wait for the resend timer and '
+                        'request a new one. Each new code replaces the last, so use the '
+                        'most recent email. If codes never arrive, contact us using the '
+                        'details above and we will check the address on your account.',
                   ),
                 ],
               ),

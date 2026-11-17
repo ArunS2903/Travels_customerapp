@@ -23,8 +23,12 @@ import '../../realtime/socket_service.dart';
 import '../../support/presentation/widgets/business_contact_card.dart';
 import '../models/booking.dart';
 import '../providers/booking_detail_providers.dart';
+import '../../support/data/support_repository.dart';
+import 'widgets/booking_actions_card.dart';
 import 'widgets/booking_route_map.dart';
 import 'widgets/driver_allocation_card.dart';
+import 'widgets/payment_card.dart';
+import 'widgets/upi_payment_sheet.dart';
 import 'widgets/status_timeline.dart';
 
 /// Everything about one booking: the Booked Details screen.
@@ -112,8 +116,53 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
     }
   }
 
-  Future<void> _startGpayPayment(Booking booking) async {
+  /// Starts an online payment by whichever route the server is configured for.
+  ///
+  /// The two are genuinely different flows, not two skins on one: a gateway
+  /// checkout confirms itself and finishes inside the app, while a direct UPI
+  /// intent hands the customer to another application entirely and comes back
+  /// needing a reference. Branching here, on what the server reports, keeps
+  /// that decision in one place instead of in every button.
+  Future<void> _startOnlinePayment(Booking booking) async {
     if (_isProcessingPayment) return;
+
+    final capabilities = ref.read(serverCapabilitiesProvider).maybeWhen(
+          data: (value) => value,
+          orElse: () => ServerCapabilities.fallback,
+        );
+
+    if (capabilities.usesDirectUpi) {
+      await _payByUpi(booking);
+      return;
+    }
+
+    await _startGatewayPayment(booking);
+  }
+
+  Future<void> _payByUpi(Booking booking) async {
+    final submitted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => UpiPaymentSheet(booking: booking),
+    );
+
+    if (!mounted) return;
+    // Re-read before saying anything: the sheet moved the booking to Awaiting
+    // Verification, and the message below should sit beside a card that
+    // already says so.
+    await _refresh();
+    if (!mounted) return;
+
+    if (submitted == true) {
+      AppFeedback.showSuccess(
+        context,
+        'Thanks. We are checking your payment and will confirm it shortly.',
+      );
+    }
+  }
+
+  Future<void> _startGatewayPayment(Booking booking) async {
     setState(() => _isProcessingPayment = true);
 
     try {
@@ -407,6 +456,14 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
             ),
           const SizedBox(height: AppSpacing.lg),
 
+          /// --- Contact and route ------------------------------------------
+          ///
+          /// High on the screen, directly under the reference and status,
+          /// because these are what a customer reaches for while the booking
+          /// is live - not after they have scrolled past the fare breakdown.
+          BookingActionsCard(booking: booking),
+          const SizedBox(height: AppSpacing.lg),
+
           // --- Driver allocation --------------------------------------------
           // Always shown, allocated or not: "has a driver been assigned?" is
           // the question this screen exists to answer, and a card that appeared
@@ -422,12 +479,6 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
                 : null,
           ),
           const SizedBox(height: AppSpacing.lg),
-
-          // --- The vehicle, and its photographs -----------------------------
-          if (booking.vehicle != null) ...[
-            _VehicleCard(booking: booking),
-            const SizedBox(height: AppSpacing.lg),
-          ],
 
           // --- Route --------------------------------------------------------
           SectionCard(
@@ -521,6 +572,21 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
 
+          /// --- Payment -----------------------------------------------------
+          ///
+          /// Immediately under the fare, because the first question after
+          /// "how much" is "have I paid it". The card owns both payment
+          /// methods and the two post-verification acknowledgements; see
+          /// widgets/payment_card.dart for why those are gated on verified
+          /// money rather than on a Paid status.
+          PaymentCard(
+            booking: booking,
+            isBusy: _isProcessingPayment,
+            onPayOnline: () => _startOnlinePayment(booking),
+            onConfirmCash: () => _confirmCashPaid(booking),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
           // --- Booking facts ------------------------------------------------
           SectionCard(
             title: 'Booking information',
@@ -583,6 +649,27 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
 
+          /// --- The vehicle ------------------------------------------------
+          ///
+          /// Directly under Booking information, and tappable.
+          ///
+          /// The position is the point. A customer reads this screen to answer
+          /// "what did I book, when, and what is it costing me" - the vehicle
+          /// is the answer to the first of those, so it belongs with the other
+          /// two rather than above the route. The card itself is a summary:
+          /// the registration number and the headline figures, which is what
+          /// gets quoted on the phone. Everything else - the full gallery, the
+          /// specification, the day-by-day charges - is one tap away on its own
+          /// screen, so this one stays scannable.
+          if (booking.vehicle != null) ...[
+            _VehicleCard(
+              booking: booking,
+              onOpenDetails: () =>
+                  context.push(AppRoutes.bookingVehicleFor(booking.id)),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
+
           // --- Operator contact ---------------------------------------------
           // The snapshot captured on this booking, so it stays accurate for the
           // trip even if the operator later changes their support line.
@@ -595,24 +682,19 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
     );
   }
 
+  /// The sticky bar: the one action worth keeping within thumb reach.
+  ///
+  /// Payment used to live here too and no longer does - it moved into the
+  /// Payment card, where the amount, the method and the state it depends on
+  /// are visible beside it. A "Pay" button floating over a screen that says
+  /// "awaiting verification" four hundred pixels above it was the kind of
+  /// contradiction that produces duplicate payments.
   Widget? _buildBottomBar(BookingDetail detail) {
     final theme = Theme.of(context);
     final booking = detail.booking;
-    final canPayByGpay =
-        booking.paymentMethod == PaymentMethod.gpay &&
-        (booking.paymentStatus == PaymentStatus.pending ||
-            booking.paymentStatus == PaymentStatus.failed);
-    final canConfirmCash =
-        booking.paymentMethod == PaymentMethod.cash &&
-        booking.status == BookingStatus.completed &&
-        booking.paymentStatus != PaymentStatus.paid &&
-        booking.paymentStatus != PaymentStatus.refunded;
     final canBookAgain = booking.status == BookingStatus.completed;
 
-    if (!detail.cancellation.canCancel &&
-        !canPayByGpay &&
-        !canConfirmCash &&
-        !canBookAgain) {
+    if (!detail.cancellation.canCancel && !canBookAgain) {
       return null;
     }
 
@@ -631,28 +713,6 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (canPayByGpay) ...[
-            PrimaryButton(
-              label: 'Pay with GPay',
-              icon: Icons.account_balance_wallet_rounded,
-              isLoading: _isProcessingPayment,
-              onPressed: _isProcessingPayment
-                  ? null
-                  : () => _startGpayPayment(booking),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
-          if (canConfirmCash) ...[
-            PrimaryButton(
-              label: 'Confirm Paid',
-              icon: Icons.check_circle_outline_rounded,
-              isLoading: _isProcessingPayment,
-              onPressed: _isProcessingPayment
-                  ? null
-                  : () => _confirmCashPaid(booking),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
           if (detail.cancellation.canCancel) ...[
             if (fee > 0)
               Padding(
@@ -690,9 +750,13 @@ class _BookingDetailsScreenState extends ConsumerState<BookingDetailsScreen> {
 /// still shows the car that went out at the rate it went out at - the operator
 /// re-prices vehicles, replaces photographs and eventually sells them.
 class _VehicleCard extends StatelessWidget {
-  const _VehicleCard({required this.booking});
+  const _VehicleCard({required this.booking, this.onOpenDetails});
 
   final Booking booking;
+
+  /// Opens the full vehicle screen. Optional so the card can still be dropped
+  /// into a context with nowhere to go.
+  final VoidCallback? onOpenDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -702,8 +766,12 @@ class _VehicleCard extends StatelessWidget {
     final symbol = booking.currencySymbol;
 
     return SectionCard(
-      title: 'Your vehicle',
+      title: 'Vehicle details',
       icon: Icons.directions_car_filled_rounded,
+      // The whole card is the target, not just a chevron: a 350-pixel-wide
+      // tap area is easier to hit on a moving bus than a 24-pixel icon, and
+      // the trailing row below says where it goes.
+      onTap: onOpenDetails,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -773,6 +841,38 @@ class _VehicleCard extends StatelessWidget {
                 value:
                     '${Formatters.money(hire.securityDeposit, symbol: symbol)} (refundable)',
               ),
+          ],
+
+          if (onOpenDetails != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            const Divider(height: 1),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                Icon(
+                  Icons.photo_library_outlined,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    vehicle.photos.length > 1
+                        ? 'View all ${vehicle.photos.length} photos and the full specification'
+                        : 'View the full vehicle details',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
+            ),
           ],
         ],
       ),

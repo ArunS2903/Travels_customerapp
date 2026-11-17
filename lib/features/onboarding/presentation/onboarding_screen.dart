@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../shared/widgets/app_logo.dart';
 import '../../../shared/widgets/primary_button.dart';
@@ -91,7 +92,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Text(
-                      'PP Travels',
+                      AppConfig.appName,
                       style: theme.textTheme.titleSmall,
                     ),
                   ),
@@ -124,7 +125,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         width: isActive ? 24 : 7,
                         decoration: BoxDecoration(
                           color: isActive
-                              ? AppColors.amber
+                              ? AppColors.brand
                               : theme.colorScheme.outline,
                           borderRadius: BorderRadius.circular(AppRadius.pill),
                         ),
@@ -171,11 +172,11 @@ class _OnboardingPage extends StatelessWidget {
             height: 160,
             width: 160,
             decoration: BoxDecoration(
-              color: AppColors.amber.withValues(alpha: 0.16),
+              color: AppColors.brand.withValues(alpha: 0.16),
               shape: BoxShape.circle,
             ),
             child: Center(
-              child: Icon(icon, size: 72, color: AppColors.amberDark),
+              child: Icon(icon, size: 72, color: AppColors.brand),
             ),
           ),
           const SizedBox(height: AppSpacing.huge),

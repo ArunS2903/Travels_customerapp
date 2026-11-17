@@ -63,7 +63,7 @@ class BookingInformationCard extends ConsumerWidget {
           ? Text(
               draft.days == 1 ? '1 day' : '${draft.days} days',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: AppColors.amberDark,
+                color: AppColors.brand,
                 fontWeight: FontWeight.w700,
               ),
             )

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -393,7 +394,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  businessName ?? 'PP Travels',
+                  businessName ?? AppConfig.appName,
                   style: theme.textTheme.labelSmall,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -562,7 +563,7 @@ class _SavedPlacesRow extends StatelessWidget {
                                 ? Icons.work_rounded
                                 : Icons.bookmark_rounded,
                             size: 16,
-                            color: AppColors.amberDark,
+                            color: AppColors.brand,
                           ),
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(

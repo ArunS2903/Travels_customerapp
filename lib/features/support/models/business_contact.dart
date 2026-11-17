@@ -1,3 +1,5 @@
+import '../../../core/config/app_config.dart';
+
 /// The official business contact details, from `GET /public/business-contact`.
 ///
 /// Everything here is fetched at runtime. Nothing in this app hardcodes an
@@ -36,7 +38,7 @@ class BusinessContact {
   final String? supportHours;
 
   factory BusinessContact.fromJson(Map<String, dynamic> json) => BusinessContact(
-        businessName: (json['businessName'] ?? 'Taxi Service') as String,
+        businessName: (json['businessName'] ?? AppConfig.appName) as String,
         adminContactName: json['adminContactName'] as String?,
         adminPhone: json['adminPhone'] as String?,
         adminEmail: json['adminEmail'] as String?,

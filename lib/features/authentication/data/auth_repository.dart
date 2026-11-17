@@ -27,13 +27,31 @@ class AuthRepository {
 
   /// Sends a one-time code. `purpose` decides what the code may then be used
   /// for; the backend will not accept a `login` code for a password reset.
+  /// Requests a one-time code.
+  ///
+  /// `deliveryEmail` is only meaningful when [identifier] is a mobile number
+  /// and [purpose] is registration: there is no account yet, so there is no
+  /// address on file to email the code to, and the one being registered has
+  /// to travel with the request.
+  ///
+  /// For every other purpose the server ignores it and uses the address on the
+  /// account - which is deliberate. If it honoured a caller-supplied address,
+  /// anyone who knew a customer's mobile number could have that customer's
+  /// sign-in code sent to an inbox of their own choosing.
   Future<OtpChallenge> sendOtp({
     required String identifier,
     required OtpPurpose purpose,
+    String? deliveryEmail,
   }) async {
+    final email = deliveryEmail?.trim() ?? '';
+
     final data = await _client.post(
       ApiEndpoints.sendOtp,
-      body: {...identifierBody(identifier), 'purpose': purpose.apiValue},
+      body: {
+        ...identifierBody(identifier),
+        if (email.isNotEmpty && purpose == OtpPurpose.register) 'email': email,
+        'purpose': purpose.apiValue,
+      },
     );
     return OtpChallenge.fromJson(data);
   }

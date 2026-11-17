@@ -4,11 +4,29 @@ import 'package:flutter/services.dart';
 import 'app_colors.dart';
 import 'app_spacing.dart';
 
-/// Light and dark themes.
+/// Light and dark themes, built from the PP Travels & Cab palette.
 ///
 /// Everything visual is configured here rather than per-widget, so a screen can
 /// be written with plain `ElevatedButton`s and `TextField`s and still look
 /// right. Only genuinely reusable compositions live in `shared/widgets`.
+///
+/// How the brand is applied
+/// -----------------------
+/// The logo is a gradient, and a gradient cannot be a `ColorScheme` entry -
+/// Material's scheme is made of flat colours. So the brand reaches the UI two
+/// ways, and the division is deliberate:
+///
+///   * Flat [AppColors.brand] is the scheme's `primary`. Every selection
+///     state, focus ring, switch, tab indicator, progress bar and link picks
+///     it up from here without a single screen asking for it. All of those
+///     need contrast, and `brand` is the step of the ramp that has it.
+///   * The gradient appears only where a surface is large enough to carry it:
+///     the primary button, the app bar on branded screens, the logo badge. It
+///     is drawn by the widget, not configured here, because `ThemeData` has
+///     nowhere to put one.
+///
+/// The practical consequence is that a screen gets the brand for free and can
+/// never accidentally set brand-coloured body text, which would fail contrast.
 class AppTheme {
   const AppTheme._();
 
@@ -46,16 +64,23 @@ class AppTheme {
   }) {
     final isDark = brightness == Brightness.dark;
 
+    /// On a dark surface the 600 step is too heavy to read against, so the
+    /// ramp is stepped back to 300, which clears AA the other way round.
+    final brandPrimary = isDark ? AppColors.brandOnDark : AppColors.brand;
+    final onBrandPrimary = isDark ? AppColors.ink : Colors.white;
+
     final colorScheme = ColorScheme(
       brightness: brightness,
-      primary: isDark ? AppColors.amber : AppColors.ink,
-      onPrimary: isDark ? AppColors.ink : Colors.white,
-      primaryContainer: isDark ? AppColors.inkSoft : AppColors.ink,
+      primary: brandPrimary,
+      onPrimary: onBrandPrimary,
+      primaryContainer: isDark ? AppColors.brand800 : AppColors.brand600,
       onPrimaryContainer: Colors.white,
-      secondary: AppColors.amber,
-      onSecondary: AppColors.ink,
-      secondaryContainer: isDark ? AppColors.inkMuted : AppColors.amberSoft,
-      onSecondaryContainer: isDark ? AppColors.amber : AppColors.ink,
+      secondary: isDark ? AppColors.logoPink : AppColors.brand500,
+      onSecondary: Colors.white,
+      secondaryContainer: isDark ? AppColors.brand900 : AppColors.brandSoft,
+      onSecondaryContainer: isDark ? AppColors.brand100 : AppColors.brand800,
+      tertiary: isDark ? AppColors.logoPurple : AppColors.logoPurple,
+      onTertiary: Colors.white,
       surface: surface,
       onSurface: textPrimary,
       surfaceContainerHighest: surfaceAlt,
@@ -98,9 +123,9 @@ class AppTheme {
 
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.amber,
-          foregroundColor: AppColors.ink,
-          disabledBackgroundColor: isDark ? AppColors.inkMuted : AppColors.lightBorder,
+          backgroundColor: brandPrimary,
+          foregroundColor: onBrandPrimary,
+          disabledBackgroundColor: isDark ? AppColors.darkSurfaceAlt : AppColors.lightBorder,
           disabledForegroundColor: textTertiary,
           minimumSize: const Size.fromHeight(54),
           elevation: 0,
@@ -121,7 +146,7 @@ class AppTheme {
 
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: isDark ? AppColors.amber : AppColors.ink,
+          foregroundColor: brandPrimary,
           textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
           minimumSize: const Size(0, AppSpacing.minTapTarget),
@@ -138,7 +163,7 @@ class AppTheme {
         hintStyle: textTheme.bodyMedium?.copyWith(color: textTertiary),
         labelStyle: textTheme.bodyMedium?.copyWith(color: textSecondary),
         floatingLabelStyle: textTheme.bodySmall?.copyWith(
-          color: isDark ? AppColors.amber : AppColors.ink,
+          color: brandPrimary,
           fontWeight: FontWeight.w600,
         ),
         // Errors wrap to two lines rather than being clipped, because a
@@ -155,7 +180,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: BorderSide(color: isDark ? AppColors.amber : AppColors.ink, width: 1.6),
+          borderSide: BorderSide(color: brandPrimary, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -205,6 +230,8 @@ class AppTheme {
 
       chipTheme: ChipThemeData(
         backgroundColor: surfaceAlt,
+        selectedColor: isDark ? AppColors.brand900 : AppColors.brandSoft,
+        checkmarkColor: brandPrimary,
         side: BorderSide(color: border),
         labelStyle: textTheme.labelMedium?.copyWith(color: textPrimary),
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
@@ -214,25 +241,28 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         backgroundColor: isDark ? AppColors.darkSurfaceAlt : AppColors.ink,
         contentTextStyle: textTheme.bodyMedium?.copyWith(color: Colors.white),
-        actionTextColor: AppColors.amber,
+        // The snackbar sits on ink, where the 600 step is unreadable; its
+        // action takes the light end of the ramp for the same reason the dark
+        // scheme does.
+        actionTextColor: AppColors.brand300,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
         insetPadding: const EdgeInsets.all(AppSpacing.lg),
       ),
 
       tabBarTheme: TabBarThemeData(
-        labelColor: isDark ? AppColors.amber : AppColors.ink,
+        labelColor: brandPrimary,
         unselectedLabelColor: textSecondary,
         labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
         unselectedLabelStyle: textTheme.labelLarge,
-        indicatorColor: isDark ? AppColors.amber : AppColors.ink,
+        indicatorColor: brandPrimary,
         indicatorSize: TabBarIndicatorSize.tab,
         dividerColor: border,
       ),
 
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: surface,
-        selectedItemColor: isDark ? AppColors.amber : AppColors.ink,
+        selectedItemColor: brandPrimary,
         unselectedItemColor: textTertiary,
         selectedLabelStyle: textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
         unselectedLabelStyle: textTheme.labelSmall,
@@ -242,15 +272,42 @@ class AppTheme {
 
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? AppColors.ink : surface,
+          (states) => states.contains(WidgetState.selected) ? Colors.white : surface,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? AppColors.amber : surfaceAlt,
+          (states) => states.contains(WidgetState.selected) ? brandPrimary : surfaceAlt,
         ),
+      ),
+
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: surface,
+        indicatorColor: isDark ? AppColors.brand900 : AppColors.brandSoft,
+        surfaceTintColor: Colors.transparent,
+      ),
+
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? brandPrimary : border,
+        ),
+      ),
+
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? brandPrimary : Colors.transparent,
+        ),
+        checkColor: WidgetStatePropertyAll(onBrandPrimary),
+        side: BorderSide(color: border, width: 1.4),
+      ),
+
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: brandPrimary,
+        foregroundColor: onBrandPrimary,
       ),
 
       listTileTheme: ListTileThemeData(
         iconColor: textSecondary,
+        selectedColor: brandPrimary,
+        selectedTileColor: isDark ? AppColors.brand900 : AppColors.brandSoft,
         titleTextStyle: textTheme.bodyLarge,
         subtitleTextStyle: textTheme.bodySmall?.copyWith(color: textSecondary),
         contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
@@ -258,7 +315,7 @@ class AppTheme {
       ),
 
       progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: isDark ? AppColors.amber : AppColors.ink,
+        color: brandPrimary,
         linearTrackColor: surfaceAlt,
         circularTrackColor: Colors.transparent,
       ),

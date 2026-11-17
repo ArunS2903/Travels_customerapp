@@ -28,7 +28,7 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <application
-        android:label="PP Travels"
+        android:label="PP Travels &amp; Cab"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">
@@ -109,6 +109,44 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
+        </intent>
+
+        <!--
+            UPI payment apps. Without this entry Android 11+ reports every UPI
+            app as absent, `canLaunchUrl` returns false, and the Pay button
+            does nothing on a phone that has GPay installed.
+
+            The generic `upi:` scheme is what the app actually launches, so the
+            customer picks whichever UPI app they already use. The named
+            schemes below are only probed to decide which shortcut buttons to
+            offer; nothing depends on any one of them being present.
+        -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tez" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="phonepe" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="paytmmp" />
+        </intent>
+
+        <!--
+            Maps, for the route from the customer's location to their drop
+            point. `geo:` is the Android standard and is answered by Google
+            Maps and by every other maps app; the https fallback in
+            booking_route_map.dart covers a device with none installed.
+        -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
         </intent>
     </queries>
 </manifest>
